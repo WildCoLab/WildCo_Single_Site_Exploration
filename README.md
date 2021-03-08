@@ -8,10 +8,10 @@ This script allows you to:
 ## See when cameras were active
 ![activity](https://wildlife.sites.olt.ubc.ca/files/2021/03/activity.jpg)
 ## Summarise species detections and labels
-
+![detections](https://wildlife.sites.olt.ubc.ca/files/2021/03/detections.jpg)
 ## Explore detections through time and space
-
+![time](https://wildlife.sites.olt.ubc.ca/files/2021/03/time.jpg)
 ## Subset to "independent" data based a threshold you provide
 
 ## Output 'analysis ready' matrices of detections at total, monthly and weekly timescales
-
+![matrix](https://wildlife.sites.olt.ubc.ca/files/2021/03/output.jpg)
