@@ -4,7 +4,7 @@ R code to explore the data from WildCo standardised data - not to run this scrip
 This script allows you to:
 
 ## Plot your camera locations
-![alt text](![image](https://user-images.githubusercontent.com/4758200/110359063-e45bcf00-7ff1-11eb-9a07-750090ae9cc6.png))
+![alt text](https://user-images.githubusercontent.com/4758200/110359063-e45bcf00-7ff1-11eb-9a07-750090ae9cc6.png)
 ## See when cameras were active
 
 ## Summarise species detections and labels
