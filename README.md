@@ -1,5 +1,5 @@
 # Single Site Exploration and data export
-R code to explore the data from WildCo standardised data - not to run this script on data exported from Wild # you will first need to run the standardiser script (Mitch?).
+R code to explore the data from WildCo standardised data - not to run this script on data exported from Wild3 you will first need to run the standardiser script (Mitch?).
 
 This script allows you to:
 
