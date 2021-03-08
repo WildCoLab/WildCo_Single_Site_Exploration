@@ -13,5 +13,5 @@ This script allows you to:
 
 ## Subset to "independent" data based a threshold you provide
 
-## Output analysis ready matrices of detections at total, monthly and weekly tiemscales
+## Output 'analysis ready' matrices of detections at total, monthly and weekly timescales
 
