@@ -6,7 +6,7 @@ editor_options:
   chunk_output_type: console
 ---
 
-```{r setup and tests, include=FALSE}
+```{r setup and tests, include=FALSE, warnings=F, message=F}
 
 ## README FIRST ##
 #Read and run this chunk of code line by line in the R Console (do not press knit) - there are some questions below which you will have to answer and some logic tests to complete. Once you are happy that the conditions have been satisfied, hit 'knit' above. 
@@ -15,6 +15,9 @@ editor_options:
 dat <- read.csv("Raw Data/Detection_Data_Feb_2020_Single_Project.csv", header=T)
 eff <- read.csv("Raw Data/Deployment_Data_Feb_2020_Single_Project.csv", header=T)
 sta <- read.csv("Raw Data/Station_Covariates_Feb_2020_Single_Project.csv", header=T)
+
+# Create an ouput folder 
+dir.create("Output data/")
 
 # Timezone [Use UTC if your cameras do not correct for daylight saving time, if they do use the timezone where the data was collected]
 tz <- "UTC"
@@ -618,6 +621,164 @@ for(i in 1:length(focal.sp))
 
 ```
 
+## Station level detection rates
+```{r, echo=F}
+# Only do this for species you are interested in
+
+ind.dat <- ind.dat[!ind.dat$Species %in% c("", "No Animal"),]
+ind.dat$Species <- factor(ind.dat$Species)
+#levels(ind.dat$Species)
+```
+
+# Data exporting
+
+Check that the code is outputting sensible total/monthly/weekly dataframes!
+
+## Total counts
+
+```{r, echo=F}
+# Total counts
+  # Station / Month / Effort / Species      
+  tmp <- bind_rows(daily.lookup)
+  
+  # Calculate the number of days at each site  
+  total.obs <- tmp %>% 
+      group_by(Deployment.Location.ID) %>%
+      summarise(Effort = n())
+  # Convert to a data frame
+  total.obs <- as.data.frame(total.obs)
+  
+  # Add columns for each species  
+  total.obs[, levels(ind.dat$Species)] <- NA
+  # Duplicate for counts
+  total.count <- total.obs
+  # Test counter
+  i <-1
+  # For each station, count the number of individuals/observations
+  for(i in 1:nrow(total.obs))
+    {
+      tmp <- ind.dat[ind.dat$Deployment.Location.ID==total.obs$Deployment.Location.ID[i],]
+      
+      for(j in 1:length(levels(ind.dat$Species)))
+      {
+        total.obs[i,levels(ind.dat$Species)[j]] <- length(tmp$Species[tmp$Species==levels(ind.dat$Species)[j]])
+        total.count[i,levels(ind.dat$Species)[j]] <- sum(tmp$Event.Groupsize[tmp$Species==levels(ind.dat$Species)[j]])
+      }
+    }
+
+write.csv(total.obs, paste0("Output data/",dat$Project.ID[1], "_",independent ,"min_Independent_total_observations.csv"), row.names = F) 
+
+write.csv(total.count, paste0("Output data/",dat$Project.ID[1], "_",independent ,"min_Independent_total_counts.csv"), row.names = F) 
+
+head(total.obs)
+
+```
+
+# Monthly
+
+```{r, echo=F}
+# Monthly
+  # Station / Month / Effort / Covariates / Species      
+  tmp <- bind_rows(daily.lookup)
+  # Simplify the date to monthly
+  tmp$Date <- substr(tmp$Date,1,7)
+  
+  # Calculate the number of days in each month  
+  mon.obs <- tmp %>% 
+      group_by(Deployment.Location.ID,Date ) %>%
+      summarise(Effort = n())
+  # Convert to a data frame
+  mon.obs <- as.data.frame(mon.obs)
+    
+  mon.obs[, levels(ind.dat$Species)] <- NA
+  mon.count <- mon.obs
+  # Test counter
+  #i <-1
+  # For each month, count the number of individuals/observations
+  for(i in 1:nrow(mon.obs))
+    {
+      tmp <- ind.dat[ind.dat$Deployment.Location.ID==mon.obs$Deployment.Location.ID[i] & substr(ind.dat$Date_Time.Captured,1,7)== mon.obs$Date[i],]
+      for(j in 1:length(levels(ind.dat$Species)))
+      {
+        mon.obs[i,levels(ind.dat$Species)[j]] <- length(tmp$Species[tmp$Species==levels(ind.dat$Species)[j]])
+        mon.count[i,levels(ind.dat$Species)[j]] <- sum(tmp$Event.Groupsize[tmp$Species==levels(ind.dat$Species)[j]])
+      }
+    }
+
+  
+write.csv(mon.obs, paste0("Output data/",dat$Project.ID[1], "_",independent ,"min_Independent_Monthly_observations.csv"), row.names = F) 
+
+write.csv(mon.count, paste0("Output data/",dat$Project.ID[1], "_",independent ,"min_Independent_Monthly_counts.csv"), row.names = F) 
+
+
+head(mon.obs)
+
+  
+```
+
+# Weekly
+
+Note for weekly data we use year-week where week is the since january 1st. This preserved the temporal structure of weeks (rather than having a miscellaneous counter). 
+
+```{r, echo=F}
+# Week -year format
+  # Station / Month / Effort / Covariates / Species      
+  tmp <- bind_rows(daily.lookup)
+  # Simplify the date to year-week
+  tmp$Date <- strftime(tmp$Date, format = "%Y-W%V")
+  
+  # Calculate the number of days in each week  
+  week.obs <- tmp %>% 
+      group_by(Deployment.Location.ID,Date ) %>%
+      summarise(Effort = n())
+  
+  # Convert to a data frame
+  week.obs <- as.data.frame(week.obs)
+  # Add species columns  
+  week.obs[, levels(ind.dat$Species)] <- NA
+  week.count <- week.obs
+  # Test counter
+  #i <-1
+  # For each week, count the number of individuals/observations
+  for(i in 1:nrow(week.obs))
+    {
+      tmp <- ind.dat[ind.dat$Deployment.Location.ID==week.obs$Deployment.Location.ID[i] & strftime(ind.dat$Date_Time.Captured, format = "%Y-W%V")== week.obs$Date[i],]
+      
+      
+      
+      for(j in 1:length(levels(ind.dat$Species)))
+      {
+        week.obs[i,levels(ind.dat$Species)[j]] <- length(tmp$Species[tmp$Species==levels(ind.dat$Species)[j]])
+        week.count[i,levels(ind.dat$Species)[j]] <- sum(tmp$Event.Groupsize[tmp$Species==levels(ind.dat$Species)[j]])
+      }
+    }
+write.csv(week.obs, paste0("Output data/",dat$Project.ID[1], "_",independent ,"min_Independent_weekly_observations.csv"), row.names = F) 
+
+write.csv(week.count, paste0("Output data/",dat$Project.ID[1], "_",independent ,"min_Independent_weekly_counts.csv"), row.names = F) 
+
+head(week.obs)
+
+
+```
+
+
+## Final check that each matrix is giving the same values
+### Observations
+```{r, echo=F}
+
+cbind(data.frame("Time"=c("Total", "Monthly", "Weekly")),
+rbind(colSums(total.obs[,2:ncol(total.obs)]),
+colSums(mon.obs[,3:ncol(mon.obs)]),
+colSums(week.obs[,3:ncol(week.obs)])))
+```
+
+### Counts
+```{r, echo=F}
+cbind(data.frame("Time"=c("Total", "Monthly", "Weekly")),
+rbind(colSums(total.count[,2:ncol(total.count)]),
+colSums(mon.count[,3:ncol(mon.count)]),
+colSums(week.count[,3:ncol(week.count)])))
+```
 
 
 
