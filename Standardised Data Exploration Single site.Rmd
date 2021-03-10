@@ -28,9 +28,6 @@ independent <- 30
 # Set a single catagorical variable of interest from station covariates for summary graphs. If you do not have and appropriate catagory use "Project.ID".
 category <- "Seismic"
 
-# Are spatial interpolated rasters sensible for your dataset?
-spatial.plots <- TRUE
-
 # Define a colour from the R options to base the colourscheme
 colour <- "lightseagreen"
 
@@ -40,6 +37,14 @@ colour <- "lightseagreen"
 
 # This code will not work unless your data passes the following checks
 
+#Load Packages
+list.of.packages <- c("leaflet", "dplyr", "colortools", "kriging", "corrplot", "lubridate")
+
+# Check you have them and load them
+new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
+if(length(new.packages)) install.packages(new.packages)
+lapply(list.of.packages, require, character.only = TRUE)
+
 # 1) dat$Blank must be logical
 is.logical(dat$Blank)
 # If this is FALSE convert this column to TRUE/FALSE
@@ -48,8 +53,14 @@ is.logical(dat$Blank)
 
 # 2) All dates must be in YYYY-MM-DD in 'eff' and YYYY-MM-DD HH:MM:SS in 'dat' 
 # If the following return NA, change your formatting
-strptime(eff$Camera.Deployment.Begin.Date[1], "%Y-%m-%d", tz="UTC")
-strptime(dat$Date_Time.Captured[1], "%Y-%m-%d %H:%M:%S", tz="UTC")
+
+as.Date(ymd_hms(eff$Camera.Deployment.Begin.Date[1], truncated=3))
+
+as.Date(ymd_hms("2019-07-04 0:00", truncated=3))
+ymd(ymd_hms("2019-07-04 5", truncated=3))
+strptime(as.Date(ymd_hms("2019-07-04", truncated=3)), "%Y-%m-%d", tz=tz)
+
+ymd_hms(dat$Date_Time.Captured[1],truncated=2)
 
 # 3) the dates in 'eff$Camera.Deployment.End.Date' must be the when the camera fails, not when you check the camera. If the camera fails (due to damage or full sd card), use the last day it functions here.  
 
@@ -73,22 +84,17 @@ length(setdiff(eff$Deployment.Location.ID, sta$Deployment.Location.ID))
 
 
 ```{r non-adjustable options, echo=F, include=F}
-#Load Packages
-list.of.packages <- c("leaflet", "dplyr", "colortools", "kriging", "corrplot", "lubridate")
-
-# Check you have them and load them
-new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
-if(length(new.packages)) install.packages(new.packages)
-
-lapply(list.of.packages, require, character.only = TRUE)
 
 # Prepare dates
-eff$Camera.Deployment.Begin.Date <- as.POSIXct(strptime(eff$Camera.Deployment.Begin.Date, "%Y-%m-%d", tz ))
-eff$Camera.Deployment.End.Date <- as.POSIXct(strptime(eff$Camera.Deployment.End.Date, "%Y-%m-%d", tz ))
+ymd(eff$Camera.Deployment.Begin.Date[1])
+ymd_hms(dat$Date_Time.Captured[1],truncated=2)
+
+eff$Camera.Deployment.Begin.Date <- strptime(as.Date(ymd_hms(eff$Camera.Deployment.Begin.Date, truncated=3, tz=tz)), "%Y-%m-%d", tz=tz)
+eff$Camera.Deployment.End.Date   <- strptime(as.Date(ymd_hms(eff$Camera.Deployment.End.Date, truncated=3, tz=tz)), "%Y-%m-%d", tz=tz)
 
 eff$Days <- as.numeric(round(difftime(eff$Camera.Deployment.End.Date, eff$Camera.Deployment.Begin.Date, units="days"),1))
 
-dat$Date_Time.Captured <- as.POSIXct(strptime(dat$Date_Time.Captured, "%Y-%m-%d %H:%M:%S", tz ))
+dat$Date_Time.Captured <- ymd_hms(dat$Date_Time.Captured, truncated=2, tz=tz)
 
 # Count the number of camera ststions
 n.stat <- length(unique(eff$Deployment.Location.ID))
@@ -149,9 +155,13 @@ The `r n.stat` stations have resulted in a total of `r as.character(round(sum(ef
 
 ```{r activity, echo=F, fig.height=eff.height}
 
+
+
 # Adjust layout
 par(mar=c(2,6,1,1))
-plot(c(min(eff$Camera.Deployment.Begin.Date, na.rm=T), max(eff$Camera.Deployment.End.Date, na.rm=T)),      c(1,n.stat), las=1, ylab="", xlab="", type="n", yaxt="n")
+plot(c(min(eff$Camera.Deployment.Begin.Date, na.rm=T), 
+       max(eff$Camera.Deployment.End.Date, na.rm=T)), 
+       c(1,n.stat), las=1, ylab="", xlab="", type="n", yaxt="n")
 
 # Have the first station plot at the top 
 plot.order <- rev(unique(eff$Deployment.Location.ID))
@@ -220,7 +230,7 @@ tmp3 <- data.frame("Species"=unique(dat$Species),"Colour"= wheel("lightseagreen"
 tmp4 <- data.frame("Deployment.Location.ID"=plot.order, "Plot.grp"=ceiling(1:length(unique(eff$Deployment.Location.ID))/20))
 
 eff <- left_join(eff,tmp4, by="Deployment.Location.ID")
-
+i<- 1
 j <- 1
 for(j in 1:length(unique(eff$Plot.grp)))
 {
@@ -263,26 +273,36 @@ Of the images classfied as containing animals, the proportion of photographs ass
 ```{r sex, echo=F, include=F}
 col.name <- "Sex"
 
-tmp <- table(dat[,col.name][dat$Blank==FALSE], as.character(dat$Species[dat$Blank==FALSE]))
-tmp <- as.data.frame.matrix(tmp)
-dat[,col.name] <- factor(dat[,col.name])
-cols <- wheel("lightseagreen", num = length(levels(dat[,col.name])))
-# Name catagories with no data N\A for NOT ASSESSED
-row.names(tmp)[row.names(tmp)==""] <- "N/A"
-# make it the last level
-tmp <- tmp[c(2:nrow(tmp),1),]
-data_percentage <- apply(tmp, 2, function(x){x*100/sum(x,na.rm=T)})
+plot<-FALSE
+if(length(colnames(dat)[colnames(dat)==col.name]>0))
+   {
+      tmp <- table(dat[,col.name][dat$Blank==FALSE], as.character(dat$Species[dat$Blank==FALSE]))
+      tmp <- as.data.frame.matrix(tmp)
+      
+      dat[,col.name]<- factor(dat[,col.name])
+      cols <- wheel("lightseagreen", num = length(levels(dat[,col.name])))
+      # Name catagories with no data N\A for NOT ASSESSED
+      row.names(tmp)[row.names(tmp)==""] <- "N/A"
+      # make it the last level
+      tmp <- tmp[c(2:nrow(tmp),1),]
+      
+      data_percentage <- apply(tmp, 2, function(x){x*100/sum(x,na.rm=T)})
+      plot<-TRUE
+  }
 
 ```
 
 
 ```{r sex plot, echo=F, fig.height=sp.height}
+if(plot==TRUE)
+{
 layout(matrix(c(1,1,1,2), 1, 4, byrow = TRUE))
 par(mar=c(5,10,1,1))
 barplot(data_percentage , border="white",col= cols, ylab="", las=1, xlab="% of observations", cex.names=0.7, horiz=2)
 par(mar=c(0,0,4,0))
 plot.new()
 legend("topleft", legend=row.names(tmp), fill=cols, xpd=TRUE, cex=1.1 )
+} else { print('Not included') }
 ```
 
 ### Age
@@ -290,27 +310,36 @@ legend("topleft", legend=row.names(tmp), fill=cols, xpd=TRUE, cex=1.1 )
 ```{r age, echo=F, include=F}
 col.name <- "Age"
 
-tmp <- table(dat[,col.name][dat$Blank==FALSE], as.character(dat$Species[dat$Blank==FALSE]))
-tmp <- as.data.frame.matrix(tmp)
-dat[,col.name] <- factor(dat[,col.name])
-cols <- wheel("lightseagreen", num = length(levels(dat[,col.name])))
-# Name catagories with no data N\A for NOT ASSESSED
-row.names(tmp)[row.names(tmp)==""] <- "N/A"
-# make it the last level
-tmp <- tmp[c(2:nrow(tmp),1),]
-
-data_percentage <- apply(tmp, 2, function(x){x*100/sum(x,na.rm=T)})
+plot<-FALSE
+if(length(colnames(dat)[colnames(dat)==col.name]>0))
+   {
+      tmp <- table(dat[,col.name][dat$Blank==FALSE], as.character(dat$Species[dat$Blank==FALSE]))
+      tmp <- as.data.frame.matrix(tmp)
+      
+      dat[,col.name]<- factor(dat[,col.name])
+      cols <- wheel("lightseagreen", num = length(levels(dat[,col.name])))
+      # Name catagories with no data N\A for NOT ASSESSED
+      row.names(tmp)[row.names(tmp)==""] <- "N/A"
+      # make it the last level
+      tmp <- tmp[c(2:nrow(tmp),1),]
+      
+      data_percentage <- apply(tmp, 2, function(x){x*100/sum(x,na.rm=T)})
+      plot<-TRUE
+  }
 
 ```
 
 
 ```{r age plot, echo=F, fig.height=sp.height}
+if(plot==TRUE)
+{
 layout(matrix(c(1,1,1,2), 1, 4, byrow = TRUE))
 par(mar=c(5,10,1,1))
 barplot(data_percentage , border="white",col= cols, ylab="", las=1, xlab="% of observations", cex.names=0.7, horiz=2)
 par(mar=c(0,0,4,0))
 plot.new()
 legend("topleft", legend=row.names(tmp), fill=cols, xpd=TRUE, cex=1.1 )
+} else { print('Not included') }
 
 ```
 
@@ -318,30 +347,35 @@ legend("topleft", legend=row.names(tmp), fill=cols, xpd=TRUE, cex=1.1 )
 
 ```{r Behaviour, echo=F, include=F}
 col.name <- "Behaviour"
-
-tmp <- table(dat[,col.name][dat$Blank==FALSE], as.character(dat$Species[dat$Blank==FALSE]))
-tmp <- as.data.frame.matrix(tmp)
-
-dat[,col.name]<- factor(dat[,col.name])
-cols <- wheel("lightseagreen", num = length(levels(dat[,col.name])))
-# Name catagories with no data N\A for NOT ASSESSED
-row.names(tmp)[row.names(tmp)==""] <- "N/A"
-# make it the last level
-tmp <- tmp[c(2:nrow(tmp),1),]
-
-data_percentage <- apply(tmp, 2, function(x){x*100/sum(x,na.rm=T)})
-
+plot<-FALSE
+if(length(colnames(dat)[colnames(dat)==col.name]>0))
+   {
+      tmp <- table(dat[,col.name][dat$Blank==FALSE], as.character(dat$Species[dat$Blank==FALSE]))
+      tmp <- as.data.frame.matrix(tmp)
+      
+      dat[,col.name]<- factor(dat[,col.name])
+      cols <- wheel("lightseagreen", num = length(levels(dat[,col.name])))
+      # Name catagories with no data N\A for NOT ASSESSED
+      row.names(tmp)[row.names(tmp)==""] <- "N/A"
+      # make it the last level
+      tmp <- tmp[c(2:nrow(tmp),1),]
+      
+      data_percentage <- apply(tmp, 2, function(x){x*100/sum(x,na.rm=T)})
+      plot<-TRUE
+  }
 ```
 
 
 ```{r behaviour plot, echo=F, fig.height=sp.height}
+if(plot==TRUE)
+{
 layout(matrix(c(1,1,1,2), 1, 4, byrow = TRUE))
 par(mar=c(5,10,1,1))
 barplot(data_percentage , border="white",col= cols, ylab="", las=1, xlab="% of observations", cex.names=0.7, horiz=2)
 par(mar=c(0,0,4,0))
 plot.new()
 legend("topleft", legend=row.names(tmp), fill=cols, xpd=TRUE, cex=1.1 )
-
+} else { print('Not included') }
 ```
 
 
@@ -528,7 +562,7 @@ for(i in 1:nrow(tmp))
 {
   if(as.Date(tmp$Camera.Deployment.Begin.Date[i])!=as.Date(tmp$Camera.Deployment.End.Date[i]))
   {
-    daily.lookup[[i]] <- data.frame("Date"=seq(as.Date(tmp$Camera.Deployment.Begin.Date[i])+1, as.Date(tmp$Camera.Deployment.End.Date[i]), by="days"), "Deployment.Location.ID"=tmp$Deployment.Location.ID[i])
+    daily.lookup[[i]] <- data.frame("Date"=seq(as.Date(tmp$Camera.Deployment.Begin.Date[i]), as.Date(tmp$Camera.Deployment.End.Date[i]), by="days"), "Deployment.Location.ID"=tmp$Deployment.Location.ID[i])
   }
 }
 row.lookup <- do.call(rbind, daily.lookup)
@@ -588,40 +622,10 @@ for(i in 1:length(focal.sp))
 
 ```
 
+# Data exporting
 
-## Spatial plots
-Kriged spatial plots of the capture rate per 100 days, scaled within each species accross the study area. These plots are to simply a give an idea of where you are catching each species. Only for species with > 20 captures.
+Check that the code is outputting sensible total/monthly/weekly dataframes! 
 
-```{r, echo=F, fig.height=8, eval=spatial.plots}
-
-focal.sp <- as.character(det.sum.total[det.sum.total$n>20,]$Species)
-focal.sp <- focal.sp[order(focal.sp)]
-# Remove any blanks
-focal.sp <- focal.sp[focal.sp!=""]
-
-
-
-par(mfrow=c(2,2))
-for(i in 1:length(focal.sp))
-{
-  p <- data.frame(x=CR.site$Longitude[CR.site$Species==focal.sp[i]], y=CR.site$Latitude[CR.site$Species==focal.sp[i]])#
-  p <- p[chull(p),]
-  p <- list(p)
-
-  # Krig your raster
-   x <- CR.site$Longitude[CR.site$Species==focal.sp[i]]
-  y <- CR.site$Latitude[CR.site$Species==focal.sp[i]]
-  z <- CR.site$CR.100[CR.site$Species==focal.sp[i]]# Krige and create the map
-  kriged <- kriging(x, y, z, polygons=p, pixels=300, lags=5)
-  image(kriged, xlim = extendrange(x), ylim = extendrange(y),
-       col=hcl.colors(20, "Oranges", rev = TRUE), breaks=c(seq(0,max(z),length.out = 21) ), asp=1, las=1, main=focal.sp[i])
-  #legend(-110.9,57.75,c(seq(0,max(z),length.out = 21) ),col=hcl.colors(20, "Oranges", rev = TRUE) )
-  points(x,y, pch=19, cex=0.8, col=rgb(0,0,0,0.5))
-}
-
-```
-
-## Station level detection rates
 ```{r, echo=F}
 # Only do this for species you are interested in
 
@@ -630,13 +634,10 @@ ind.dat$Species <- factor(ind.dat$Species)
 #levels(ind.dat$Species)
 ```
 
-# Data exporting
-
-Check that the code is outputting sensible total/monthly/weekly dataframes!
 
 ## Total counts
 
-```{r, echo=F}
+```{r, echo=F, message=F, warning=F}
 # Total counts
   # Station / Month / Effort / Species      
   tmp <- bind_rows(daily.lookup)
@@ -676,7 +677,7 @@ head(total.obs)
 
 # Monthly
 
-```{r, echo=F}
+```{r, echo=F, message=F, warning=F}
 # Monthly
   # Station / Month / Effort / Covariates / Species      
   tmp <- bind_rows(daily.lookup)
@@ -720,12 +721,12 @@ head(mon.obs)
 
 Note for weekly data we use year-week where week is the since january 1st. This preserved the temporal structure of weeks (rather than having a miscellaneous counter). 
 
-```{r, echo=F}
+```{r, echo=F, message=F, warning=F}
 # Week -year format
   # Station / Month / Effort / Covariates / Species      
   tmp <- bind_rows(daily.lookup)
   # Simplify the date to year-week
-  tmp$Date <- strftime(tmp$Date, format = "%Y-W%V")
+  tmp$Date <- strftime(tmp$Date, format = "%Y-W%U")
   
   # Calculate the number of days in each week  
   week.obs <- tmp %>% 
@@ -742,7 +743,7 @@ Note for weekly data we use year-week where week is the since january 1st. This 
   # For each week, count the number of individuals/observations
   for(i in 1:nrow(week.obs))
     {
-      tmp <- ind.dat[ind.dat$Deployment.Location.ID==week.obs$Deployment.Location.ID[i] & strftime(ind.dat$Date_Time.Captured, format = "%Y-W%V")== week.obs$Date[i],]
+      tmp <- ind.dat[ind.dat$Deployment.Location.ID==week.obs$Deployment.Location.ID[i] & strftime(ind.dat$Date_Time.Captured, format = "%Y-W%U")== week.obs$Date[i],]
       
       
       
@@ -763,6 +764,9 @@ head(week.obs)
 
 
 ## Final check that each matrix is giving the same values
+
+the code is working properly the total observations/counts should be the same at each temporal scale (total/monthly/weekly)
+
 ### Observations
 ```{r, echo=F}
 
@@ -778,7 +782,6 @@ cbind(data.frame("Time"=c("Total", "Monthly", "Weekly")),
 rbind(colSums(total.count[,2:ncol(total.count)]),
 colSums(mon.count[,3:ncol(mon.count)]),
 colSums(week.count[,3:ncol(week.count)])))
+
 ```
-
-
 
