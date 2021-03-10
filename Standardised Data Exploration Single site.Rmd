@@ -38,7 +38,7 @@ colour <- "lightseagreen"
 # This code will not work unless your data passes the following checks
 
 #Load Packages
-list.of.packages <- c("leaflet", "dplyr", "colortools", "kriging", "corrplot", "lubridate")
+list.of.packages <- c("leaflet", "dplyr", "colortools", "kriging", "corrplot", "lubridate", "kableExtra")
 
 # Check you have them and load them
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
@@ -188,7 +188,7 @@ Figure 2: Where black lines denote a camera which is active, white space indicat
 
 ## Raw camera detections
 
-To date, there have been `r nrow(dat)` image classifications, `r nrow(dat[dat$Blank==FALSE,])` of which are classified as containing identified species (`r round((nrow(dat[dat$Blank==TRUE,])/nrow(dat))*100,1)`%).
+To date, there have been `r nrow(dat)` image classifications. Of these, `r nrow(dat[dat$Blank==FALSE,])` are classified as blanks (`r round((nrow(dat[dat$Blank==TRUE,])/nrow(dat))*100,1)`% of the total dataset).
 
 Of the detections which have been identified, there are `r length(levels(factor(dat$Species)))` different catageories. 
 
@@ -248,7 +248,7 @@ for(j in 1:length(unique(eff$Plot.grp)))
       tmp <- eff[eff$Deployment.Location.ID==unique(eff$Deployment.Location.ID[eff$Plot.grp==j])[i],]
       
       tmp2 <- dat[dat$Deployment.Location.ID==tmp$Deployment.Location.ID[1],]
-      tmp2 <- left_join(tmp2, tmp3)
+      tmp2 <- left_join(tmp2, tmp3, Joining, by = "Species")
       points(tmp2$Date_Time.Captured, rep(i,nrow(tmp2)), pch="|", col= tmp2$Colour)
     
       for(k in 1:nrow(tmp))
@@ -449,10 +449,33 @@ if(!"Minimum.Group.Size" %in% colnames(dat)) {dat$Minimum.Group.Size <- dat$Numb
 
 # Subset to the first observation in each event
 
-  # Subset to 30 minute indepedenents
+  # Subset to independent observations using your chosen threshold
 ind.dat <- dat[!duplicated(dat$Event.ID),]
 ind.dat <- as.data.frame(ind.dat)
 ind.dat$Species <-as.factor(ind.dat$Species)
+
+
+# Remove all observations with occur outside of camera activity schedules
+# We need to know how many detections there are in each month -> create a row lookup
+# This is just a list of ever day a camera was active.
+
+tmp <- eff[is.na(eff$Camera.Deployment.End.Date)==F,]
+daily.lookup <- list()
+for(i in 1:nrow(tmp))
+{
+  if(as.Date(tmp$Camera.Deployment.Begin.Date[i])!=as.Date(tmp$Camera.Deployment.End.Date[i]))
+  {
+    daily.lookup[[i]] <- data.frame("Date"=seq(as.Date(tmp$Camera.Deployment.Begin.Date[i]), as.Date(tmp$Camera.Deployment.End.Date[i]), by="days"), "Deployment.Location.ID"=tmp$Deployment.Location.ID[i])
+  }
+}
+row.lookup <- do.call(rbind, daily.lookup)
+
+# Make a dat/location lookup
+tmp <- row.lookup
+tmp <- paste(tmp$Date, tmp$Deployment.Location.ID)
+
+#Subset ind.dat to data that only occurs when a camera is active
+ind.dat <- ind.dat[paste(as.Date(ind.dat$Date_Time.Captured), ind.dat$Deployment.Location.ID) %in% tmp, ]
 
 # Save it for a rainy day
 write.csv(ind.dat, paste0("Output data/",dat$Project.ID[1], "_",independent ,"min_Independent.csv"), row.names = F)
@@ -553,21 +576,7 @@ focal.sp <- focal.sp[order(focal.sp)]
 # Remove any blanks
 focal.sp <- focal.sp[focal.sp!=""]
 
-# We need to know how many detections there are in each month -> create a row lookup
-# This is just a list of ever day a camera was active.
-
-tmp <- eff[is.na(eff$Camera.Deployment.End.Date)==F,]
-daily.lookup <- list()
-for(i in 1:nrow(tmp))
-{
-  if(as.Date(tmp$Camera.Deployment.Begin.Date[i])!=as.Date(tmp$Camera.Deployment.End.Date[i]))
-  {
-    daily.lookup[[i]] <- data.frame("Date"=seq(as.Date(tmp$Camera.Deployment.Begin.Date[i]), as.Date(tmp$Camera.Deployment.End.Date[i]), by="days"), "Deployment.Location.ID"=tmp$Deployment.Location.ID[i])
-  }
-}
-row.lookup <- do.call(rbind, daily.lookup)
-
-# Now determine capture rates
+# Now determine capture rates using the row.lookup
 # Make a data frame by month and year
 mon.dat <- unique(substr(ind.dat$Date_Time.Captured, 1,7))
 mon.dat <- data.frame("Month"=mon.dat[order(mon.dat)], "Effort"= NA)
@@ -624,18 +633,38 @@ for(i in 1:length(focal.sp))
 
 # Data exporting
 
-Check that the code is outputting sensible total/monthly/weekly dataframes! 
+This script outputs 7 useful dataframes for future processing:
+
+1. A data frame of "independent detections" at the `r independent` minute threshold you specified at the start: 
+
+  - "`r  paste0("Output data/",dat$Project.ID[1], "_",independent ,"min_Independent.csv")`"
+
+2/3: A 'site x species' matrix of the number of independent detections and species counts accross the full study period:
+
+  - "`r  paste0("Output data/",dat$Project.ID[1], "_",independent ,"min_Independent_total_observations.csv")`"
+
+  - "`r  paste0("Output data/",dat$Project.ID[1], "_",independent ,"min_Independent_total_counts.csv")`"
+
+
+4/5: A 'site_month x species' matrix of the number of independent detections and species counts accross for each month in the study period:
+
+  - "`r  paste0("Output data/",dat$Project.ID[1], "_",independent ,"min_Monthly_total_observations.csv")`"
+
+  - "`r  paste0("Output data/",dat$Project.ID[1], "_",independent ,"min_Monthly_total_counts.csv")`"
+
+
+6/7: A 'site_week x species' matrix of the number of independent detections and species counts accross for each week in the study period:
+
+  - "`r  paste0("Output data/",dat$Project.ID[1], "_",independent ,"min_Weekly_total_observations.csv")`"
+
+  - "`r  paste0("Output data/",dat$Project.ID[1], "_",independent ,"min_Weekly_total_counts.csv")`"
 
 ```{r, echo=F}
 # Only do this for species you are interested in
-
 ind.dat <- ind.dat[!ind.dat$Species %in% c("", "No Animal"),]
 ind.dat$Species <- factor(ind.dat$Species)
 #levels(ind.dat$Species)
 ```
-
-
-## Total counts
 
 ```{r, echo=F, message=F, warning=F}
 # Total counts
@@ -671,14 +700,11 @@ write.csv(total.obs, paste0("Output data/",dat$Project.ID[1], "_",independent ,"
 
 write.csv(total.count, paste0("Output data/",dat$Project.ID[1], "_",independent ,"min_Independent_total_counts.csv"), row.names = F) 
 
-head(total.obs)
-
 ```
 
-# Monthly
-
 ```{r, echo=F, message=F, warning=F}
-# Monthly
+
+# Monthly counts
   # Station / Month / Effort / Covariates / Species      
   tmp <- bind_rows(daily.lookup)
   # Simplify the date to monthly
@@ -711,18 +737,11 @@ write.csv(mon.obs, paste0("Output data/",dat$Project.ID[1], "_",independent ,"mi
 
 write.csv(mon.count, paste0("Output data/",dat$Project.ID[1], "_",independent ,"min_Independent_Monthly_counts.csv"), row.names = F) 
 
-
-head(mon.obs)
-
-  
 ```
 
-# Weekly
-
-Note for weekly data we use year-week where week is the since january 1st. This preserved the temporal structure of weeks (rather than having a miscellaneous counter). 
 
 ```{r, echo=F, message=F, warning=F}
-# Week -year format
+# Weekly format
   # Station / Month / Effort / Covariates / Species      
   tmp <- bind_rows(daily.lookup)
   # Simplify the date to year-week
@@ -757,31 +776,38 @@ write.csv(week.obs, paste0("Output data/",dat$Project.ID[1], "_",independent ,"m
 
 write.csv(week.count, paste0("Output data/",dat$Project.ID[1], "_",independent ,"min_Independent_weekly_counts.csv"), row.names = F) 
 
-head(week.obs)
-
-
 ```
-
 
 ## Final check that each matrix is giving the same values
 
-the code is working properly the total observations/counts should be the same at each temporal scale (total/monthly/weekly)
+If the code is working properly the total observations/counts should be the same at each temporal scale (total/monthly/weekly). Check this using the following tables. 
 
 ### Observations
 ```{r, echo=F}
 
-cbind(data.frame("Time"=c("Total", "Monthly", "Weekly")),
+tmp <- cbind(data.frame("Time"=c("Total", "Monthly", "Weekly")),
 rbind(colSums(total.obs[,2:ncol(total.obs)]),
 colSums(mon.obs[,3:ncol(mon.obs)]),
 colSums(week.obs[,3:ncol(week.obs)])))
+
+tmp %>%
+  kbl() %>%
+  kable_styling(full_width = T) %>%
+  column_spec(1, bold = T, border_right = T)
+
 ```
 
 ### Counts
 ```{r, echo=F}
-cbind(data.frame("Time"=c("Total", "Monthly", "Weekly")),
+tmp <- cbind(data.frame("Time"=c("Total", "Monthly", "Weekly")),
 rbind(colSums(total.count[,2:ncol(total.count)]),
 colSums(mon.count[,3:ncol(mon.count)]),
 colSums(week.count[,3:ncol(week.count)])))
+
+tmp %>%
+  kbl() %>%
+  kable_styling(full_width = T) %>%
+  column_spec(1, bold = T, border_right = T)
 
 ```
 
