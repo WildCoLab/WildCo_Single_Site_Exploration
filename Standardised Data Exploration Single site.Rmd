@@ -55,11 +55,6 @@ is.logical(dat$Blank)
 # If the following return NA, change your formatting
 
 as.Date(ymd_hms(eff$Camera.Deployment.Begin.Date[1], truncated=3))
-
-as.Date(ymd_hms("2019-07-04 0:00", truncated=3))
-ymd(ymd_hms("2019-07-04 5", truncated=3))
-strptime(as.Date(ymd_hms("2019-07-04", truncated=3)), "%Y-%m-%d", tz=tz)
-
 ymd_hms(dat$Date_Time.Captured[1],truncated=2)
 
 # 3) the dates in 'eff$Camera.Deployment.End.Date' must be the when the camera fails, not when you check the camera. If the camera fails (due to damage or full sd card), use the last day it functions here.  
@@ -476,6 +471,8 @@ tmp <- paste(tmp$Date, tmp$Deployment.Location.ID)
 
 #Subset ind.dat to data that only occurs when a camera is active
 ind.dat <- ind.dat[paste(as.Date(ind.dat$Date_Time.Captured), ind.dat$Deployment.Location.ID) %in% tmp, ]
+# Reset the factor levels
+ind.dat$Species <- factor(ind.dat$Species)
 
 # Save it for a rainy day
 write.csv(ind.dat, paste0("Output data/",dat$Project.ID[1], "_",independent ,"min_Independent.csv"), row.names = F)
