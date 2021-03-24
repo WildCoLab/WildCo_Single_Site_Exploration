@@ -21,15 +21,8 @@ ud_dat <- og_dat
 ud_dat <- filter(ud_dat, deleted == "f")
 
 # fix misfire column
-
-for (i in 1:nrow(ud_dat)){
-  if (ud_dat$misfire[i] == "f"){
-    ud_dat$misfire[i] <- FALSE
-  }
-  else if (ud_dat$misfire[i] == "t"){
-    ud_dat$misfire[i] <- TRUE
-  }
-}
+ud_dat$misfire[ud_dat$misfire=="f"] <- FALSE
+ud_dat$misfire[ud_dat$misfire=="t"] <- TRUE
 
 # Change column names of essential columns to standardized format
 colnames(ud_dat)
