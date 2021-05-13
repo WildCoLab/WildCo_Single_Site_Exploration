@@ -465,6 +465,10 @@ for(i in 1:nrow(tmp))
 }
 row.lookup <- do.call(rbind, daily.lookup)
 
+# Remove duplicates
+row.lookup <- row.lookup[duplicated(row.lookup)==F,]
+
+
 # Make a dat/location lookup
 tmp <- row.lookup
 tmp <- paste(tmp$Date, tmp$Deployment.Location.ID)
@@ -673,7 +677,7 @@ ind.dat$Species <- factor(ind.dat$Species)
 ```{r, echo=F, message=F, warning=F}
 # Total counts
   # Station / Month / Effort / Species      
-  tmp <- bind_rows(daily.lookup)
+  tmp <- row.lookup
   
   # Calculate the number of days at each site  
   total.obs <- tmp %>% 
@@ -710,7 +714,7 @@ write.csv(total.count, paste0("Output data/",dat$Project.ID[1], "_",independent 
 
 # Monthly counts
   # Station / Month / Effort / Covariates / Species      
-  tmp <- bind_rows(daily.lookup)
+  tmp <- row.lookup
   # Simplify the date to monthly
   tmp$Date <- substr(tmp$Date,1,7)
   
@@ -747,7 +751,7 @@ write.csv(mon.count, paste0("Output data/",dat$Project.ID[1], "_",independent ,"
 ```{r, echo=F, message=F, warning=F}
 # Weekly format
   # Station / Month / Effort / Covariates / Species      
-  tmp <- bind_rows(daily.lookup)
+  tmp <- row.lookup
   # Simplify the date to year-week
   tmp$Date <- strftime(tmp$Date, format = "%Y-W%U")
   
@@ -786,7 +790,7 @@ write.csv(week.count, paste0("Output data/",dat$Project.ID[1], "_",independent ,
 ```{r, echo=F, message=F, warning=F}
 # Daily format
   # Station / Month / Effort / Covariates / Species      
-  tmp <- bind_rows(daily.lookup)
+  tmp <- row.lookup
   tmp$Effort <- 1
   # Add species columns  
   tmp[, levels(ind.dat$Species)] <- NA
