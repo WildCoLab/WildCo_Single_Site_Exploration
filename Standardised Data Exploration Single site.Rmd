@@ -630,7 +630,7 @@ for(i in 1:length(focal.sp))
 
 # Data exporting
 
-This script outputs 7 useful dataframes for future processing:
+This script outputs 9 useful dataframes for future data analysis:
 
 1. A data frame of "independent detections" at the `r independent` minute threshold you specified at the start: 
 
@@ -655,6 +655,13 @@ This script outputs 7 useful dataframes for future processing:
   - "`r  paste0("Output data/",dat$Project.ID[1], "_",independent ,"min_Weekly_total_observations.csv")`"
 
   - "`r  paste0("Output data/",dat$Project.ID[1], "_",independent ,"min_Weekly_total_counts.csv")`"
+  
+8/9: A 'site_day x species' matrix of the number of independent detections and species counts accross for each day a station was active in the study period:
+
+  - "`r  paste0("Output data/",dat$Project.ID[1], "_",independent ,"min_Daily_total_observations.csv")`"
+
+  - "`r  paste0("Output data/",dat$Project.ID[1], "_",independent ,"min_Daily_total_counts.csv")`"
+  
 
 ```{r, echo=F}
 # Only do this for species you are interested in
@@ -775,6 +782,39 @@ write.csv(week.count, paste0("Output data/",dat$Project.ID[1], "_",independent ,
 
 ```
 
+
+```{r, echo=F, message=F, warning=F}
+# Daily format
+  # Station / Month / Effort / Covariates / Species      
+  tmp <- bind_rows(daily.lookup)
+  tmp$Effort <- 1
+  # Add species columns  
+  tmp[, levels(ind.dat$Species)] <- NA
+  
+  day.obs <- tmp
+  day.count <- tmp
+  # Test counter
+  #i <-1
+  # For each week, count the number of individuals/observations
+  for(i in 1:nrow(day.obs))
+    {
+      tmp <- ind.dat[ind.dat$Deployment.Location.ID==day.obs$Deployment.Location.ID[i] & strftime(ind.dat$Date_Time.Captured, format = "%Y-%m-%d")== day.obs$Date[i],]
+      
+      
+      
+      for(j in 1:length(levels(ind.dat$Species)))
+      {
+        day.obs[i,levels(ind.dat$Species)[j]] <- length(tmp$Species[tmp$Species==levels(ind.dat$Species)[j]])
+        day.count[i,levels(ind.dat$Species)[j]] <- sum(tmp$Event.Groupsize[tmp$Species==levels(ind.dat$Species)[j]])
+      }
+    }
+write.csv(day.obs, paste0("Output data/",dat$Project.ID[1], "_",independent ,"min_Independent_daily_observations.csv"), row.names = F) 
+
+write.csv(day.count, paste0("Output data/",dat$Project.ID[1], "_",independent ,"min_Independent_daily_counts.csv"), row.names = F) 
+
+```
+
+
 ## Final check that each matrix is giving the same values
 
 If the code is working properly the total observations/counts should be the same at each temporal scale (total/monthly/weekly). Check this using the following tables. 
@@ -782,10 +822,11 @@ If the code is working properly the total observations/counts should be the same
 ### Observations
 ```{r, echo=F}
 
-tmp <- cbind(data.frame("Time"=c("Total", "Monthly", "Weekly")),
+tmp <- cbind(data.frame("Time"=c("Total", "Monthly", "Weekly", "Daily")),
 rbind(colSums(total.obs[,2:ncol(total.obs)]),
 colSums(mon.obs[,3:ncol(mon.obs)]),
-colSums(week.obs[,3:ncol(week.obs)])))
+colSums(week.obs[,3:ncol(week.obs)]),
+colSums(day.obs[,3:ncol(day.obs)])  ))
 
 tmp %>%
   kbl() %>%
@@ -796,10 +837,11 @@ tmp %>%
 
 ### Counts
 ```{r, echo=F}
-tmp <- cbind(data.frame("Time"=c("Total", "Monthly", "Weekly")),
+tmp <- cbind(data.frame("Time"=c("Total", "Monthly", "Weekly", "Daily")),
 rbind(colSums(total.count[,2:ncol(total.count)]),
 colSums(mon.count[,3:ncol(mon.count)]),
-colSums(week.count[,3:ncol(week.count)])))
+colSums(week.count[,3:ncol(week.count)]),
+colSums(day.count[,3:ncol(day.count)])  ))
 
 tmp %>%
   kbl() %>%
