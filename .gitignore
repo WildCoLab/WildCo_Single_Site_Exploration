@@ -43,4 +43,4 @@ vignettes/*.pdf
 *.html
 
 # Output data
-/Output data/
+/processed_data/

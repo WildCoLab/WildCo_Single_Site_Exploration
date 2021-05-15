@@ -12,12 +12,12 @@ editor_options:
 #Read and run this chunk of code line by line in the R Console (do not press knit) - there are some questions below which you will have to answer and some logic tests to complete. Once you are happy that the conditions have been satisfied, hit 'knit' above. 
 
 # Load your data [change the files paths to your data locations]
-dat <- read.csv("Raw Data/Example_detection_data.csv", header=T)
-eff <- read.csv("Raw Data/Example_deployment_data.csv", header=T)
-sta <- read.csv("Raw Data/Example_station_data.csv", header=T)
+dat <- read.csv("raw_data/Example_detection_data.csv", header=T)
+eff <- read.csv("raw_data/Example_deployment_data.csv", header=T)
+sta <- read.csv("raw_data/Example_station_data.csv", header=T)
 
 # Create an ouput folder 
-dir.create("Output data/")
+dir.create("processed_data/")
 
 # Timezone [Use UTC if your cameras do not correct for daylight saving time, if they do use the timezone where the data was collected]
 tz <- "UTC"
@@ -488,7 +488,12 @@ ind.dat <- ind.dat[paste(as.Date(ind.dat$Date_Time.Captured), ind.dat$Deployment
 ind.dat$Species <- factor(ind.dat$Species)
 
 # Save it for a rainy day
-write.csv(ind.dat, paste0("Output data/",dat$Project.ID[1], "_",independent ,"min_Independent.csv"), row.names = F)
+write.csv(ind.dat, paste0("processed_data/",dat$Project.ID[1], "_",independent ,"min_Independent.csv"), row.names = F)
+
+# Also export the effort lookup
+write.csv(row.lookup, paste0("processed_data/",dat$Project.ID[1], "_daily_effort_lookup.csv"), row.names = F)
+
+
 
 ```
 
@@ -647,33 +652,33 @@ This script outputs 9 useful dataframes for future data analysis:
 
 1. A data frame of "independent detections" at the `r independent` minute threshold you specified at the start: 
 
-  - "`r  paste0("Output data/",dat$Project.ID[1], "_",independent ,"min_Independent.csv")`"
+  - "`r  paste0("processed_data/",dat$Project.ID[1], "_",independent ,"min_Independent.csv")`"
 
 2/3: A 'site x species' matrix of the number of independent detections and species counts accross the full study period:
 
-  - "`r  paste0("Output data/",dat$Project.ID[1], "_",independent ,"min_Independent_total_observations.csv")`"
+  - "`r  paste0("processed_data/",dat$Project.ID[1], "_",independent ,"min_Independent_total_observations.csv")`"
 
-  - "`r  paste0("Output data/",dat$Project.ID[1], "_",independent ,"min_Independent_total_counts.csv")`"
+  - "`r  paste0("processed_data/",dat$Project.ID[1], "_",independent ,"min_Independent_total_counts.csv")`"
 
 
 4/5: A 'site_month x species' matrix of the number of independent detections and species counts accross for each month in the study period:
 
-  - "`r  paste0("Output data/",dat$Project.ID[1], "_",independent ,"min_Monthly_total_observations.csv")`"
+  - "`r  paste0("processed_data/",dat$Project.ID[1], "_",independent ,"min_Monthly_total_observations.csv")`"
 
-  - "`r  paste0("Output data/",dat$Project.ID[1], "_",independent ,"min_Monthly_total_counts.csv")`"
+  - "`r  paste0("processed_data/",dat$Project.ID[1], "_",independent ,"min_Monthly_total_counts.csv")`"
 
 
 6/7: A 'site_week x species' matrix of the number of independent detections and species counts accross for each week in the study period:
 
-  - "`r  paste0("Output data/",dat$Project.ID[1], "_",independent ,"min_Weekly_total_observations.csv")`"
+  - "`r  paste0("processed_data/",dat$Project.ID[1], "_",independent ,"min_Weekly_total_observations.csv")`"
 
-  - "`r  paste0("Output data/",dat$Project.ID[1], "_",independent ,"min_Weekly_total_counts.csv")`"
+  - "`r  paste0("processed_data/",dat$Project.ID[1], "_",independent ,"min_Weekly_total_counts.csv")`"
   
 8/9: A 'site_day x species' matrix of the number of independent detections and species counts accross for each day a station was active in the study period:
 
-  - "`r  paste0("Output data/",dat$Project.ID[1], "_",independent ,"min_Daily_total_observations.csv")`"
+  - "`r  paste0("processed_data/",dat$Project.ID[1], "_",independent ,"min_Daily_total_observations.csv")`"
 
-  - "`r  paste0("Output data/",dat$Project.ID[1], "_",independent ,"min_Daily_total_counts.csv")`"
+  - "`r  paste0("processed_data/",dat$Project.ID[1], "_",independent ,"min_Daily_total_counts.csv")`"
   
 
 ```{r, echo=F}
@@ -713,9 +718,9 @@ ind.dat$Species <- factor(ind.dat$Species)
       }
     }
 
-write.csv(total.obs, paste0("Output data/",dat$Project.ID[1], "_",independent ,"min_Independent_total_observations.csv"), row.names = F) 
+write.csv(total.obs, paste0("processed_data/",dat$Project.ID[1], "_",independent ,"min_Independent_total_observations.csv"), row.names = F) 
 
-write.csv(total.count, paste0("Output data/",dat$Project.ID[1], "_",independent ,"min_Independent_total_counts.csv"), row.names = F) 
+write.csv(total.count, paste0("processed_data/",dat$Project.ID[1], "_",independent ,"min_Independent_total_counts.csv"), row.names = F) 
 
 ```
 
@@ -736,8 +741,6 @@ write.csv(total.count, paste0("Output data/",dat$Project.ID[1], "_",independent 
     
   mon.obs[, levels(ind.dat$Species)] <- NA
   mon.count <- mon.obs
-  # Test counter
-  #i <-1
   # For each month, count the number of individuals/observations
   for(i in 1:nrow(mon.obs))
     {
@@ -750,9 +753,9 @@ write.csv(total.count, paste0("Output data/",dat$Project.ID[1], "_",independent 
     }
 
   
-write.csv(mon.obs, paste0("Output data/",dat$Project.ID[1], "_",independent ,"min_Independent_Monthly_observations.csv"), row.names = F) 
+write.csv(mon.obs, paste0("processed_data/",dat$Project.ID[1], "_",independent ,"min_Independent_Monthly_observations.csv"), row.names = F) 
 
-write.csv(mon.count, paste0("Output data/",dat$Project.ID[1], "_",independent ,"min_Independent_Monthly_counts.csv"), row.names = F) 
+write.csv(mon.count, paste0("processed_data/",dat$Project.ID[1], "_",independent ,"min_Independent_Monthly_counts.csv"), row.names = F) 
 
 ```
 
@@ -774,8 +777,6 @@ write.csv(mon.count, paste0("Output data/",dat$Project.ID[1], "_",independent ,"
   # Add species columns  
   week.obs[, levels(ind.dat$Species)] <- NA
   week.count <- week.obs
-  # Test counter
-  #i <-1
   # For each week, count the number of individuals/observations
   for(i in 1:nrow(week.obs))
     {
@@ -789,9 +790,9 @@ write.csv(mon.count, paste0("Output data/",dat$Project.ID[1], "_",independent ,"
         week.count[i,levels(ind.dat$Species)[j]] <- sum(tmp$Event.Groupsize[tmp$Species==levels(ind.dat$Species)[j]])
       }
     }
-write.csv(week.obs, paste0("Output data/",dat$Project.ID[1], "_",independent ,"min_Independent_weekly_observations.csv"), row.names = F) 
+write.csv(week.obs, paste0("processed_data/",dat$Project.ID[1], "_",independent ,"min_Independent_weekly_observations.csv"), row.names = F) 
 
-write.csv(week.count, paste0("Output data/",dat$Project.ID[1], "_",independent ,"min_Independent_weekly_counts.csv"), row.names = F) 
+write.csv(week.count, paste0("processed_data/",dat$Project.ID[1], "_",independent ,"min_Independent_weekly_counts.csv"), row.names = F) 
 
 ```
 
@@ -806,9 +807,7 @@ write.csv(week.count, paste0("Output data/",dat$Project.ID[1], "_",independent ,
   
   day.obs <- tmp
   day.count <- tmp
-  # Test counter
-  #i <-1
-  # For each week, count the number of individuals/observations
+# For each week, count the number of individuals/observations
   for(i in 1:nrow(day.obs))
     {
       tmp <- ind.dat[ind.dat$Deployment.Location.ID==day.obs$Deployment.Location.ID[i] & strftime(ind.dat$Date_Time.Captured, format = "%Y-%m-%d")== day.obs$Date[i],]
@@ -821,9 +820,9 @@ write.csv(week.count, paste0("Output data/",dat$Project.ID[1], "_",independent ,
         day.count[i,levels(ind.dat$Species)[j]] <- sum(tmp$Event.Groupsize[tmp$Species==levels(ind.dat$Species)[j]])
       }
     }
-write.csv(day.obs, paste0("Output data/",dat$Project.ID[1], "_",independent ,"min_Independent_daily_observations.csv"), row.names = F) 
+write.csv(day.obs, paste0("processed_data/",dat$Project.ID[1], "_",independent ,"min_Independent_daily_observations.csv"), row.names = F) 
 
-write.csv(day.count, paste0("Output data/",dat$Project.ID[1], "_",independent ,"min_Independent_daily_counts.csv"), row.names = F) 
+write.csv(day.count, paste0("processed_data/",dat$Project.ID[1], "_",independent ,"min_Independent_daily_counts.csv"), row.names = F) 
 
 ```
 
