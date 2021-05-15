@@ -12,9 +12,9 @@ editor_options:
 #Read and run this chunk of code line by line in the R Console (do not press knit) - there are some questions below which you will have to answer and some logic tests to complete. Once you are happy that the conditions have been satisfied, hit 'knit' above. 
 
 # Load your data [change the files paths to your data locations]
-dat <- read.csv("Raw Data/Detection_Data_Feb_2020_Single_Project.csv", header=T)
-eff <- read.csv("Raw Data/Deployment_Data_Feb_2020_Single_Project.csv", header=T)
-sta <- read.csv("Raw Data/Station_Covariates_Feb_2020_Single_Project.csv", header=T)
+dat <- read.csv("Raw Data/Example_detection_data.csv", header=T)
+eff <- read.csv("Raw Data/Example_deployment_data.csv", header=T)
+sta <- read.csv("Raw Data/Example_station_data.csv", header=T)
 
 # Create an ouput folder 
 dir.create("Output data/")
@@ -26,7 +26,7 @@ tz <- "UTC"
 independent <- 30
 
 # Set a single catagorical variable of interest from station covariates for summary graphs. If you do not have and appropriate catagory use "Project.ID".
-category <- "Seismic"
+category <- "Treatment"
 
 # Define a colour from the R options to base the colourscheme
 colour <- "lightseagreen"
@@ -150,8 +150,6 @@ The `r n.stat` stations have resulted in a total of `r as.character(round(sum(ef
 
 ```{r activity, echo=F, fig.height=eff.height}
 
-
-
 # Adjust layout
 par(mar=c(2,6,1,1))
 plot(c(min(eff$Camera.Deployment.Begin.Date, na.rm=T), 
@@ -162,6 +160,13 @@ plot(c(min(eff$Camera.Deployment.Begin.Date, na.rm=T),
 plot.order <- rev(unique(eff$Deployment.Location.ID))
 
 axis(2, at= 1:n.stat, labels= plot.order, las=1, cex.axis=0.4)
+
+#Horizontal lines for months
+abline(v=as.numeric(strptime(seq(as.Date(paste0(substr(min(eff$Camera.Deployment.Begin.Date, na.rm=T),1,7),"-01"))
+,as.Date(max(eff$Camera.Deployment.End.Date, na.rm=T)),"months"
+ )," %Y-%m-%d")), col=rgb(0,0,0,0.1))
+
+
 #mtext("Camera Deployment ID", 2, 4)
 # Make lines for each of the cameras
 for(i in 1:length(plot.order))
@@ -177,9 +182,13 @@ for(i in 1:length(plot.order))
   
 }
 
+
+
+
+
 ```
 
-Figure 2: Where black lines denote a camera which is active, white space indicates cameras which are inactive. 
+Figure 2: Where black lines denote a camera which is active, white space indicates cameras which are inactive, grey vertical lines represent the 1st of each calender month. 
 
 ## Raw camera detections
 
