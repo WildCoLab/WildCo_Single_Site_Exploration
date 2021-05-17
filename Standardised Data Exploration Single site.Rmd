@@ -766,6 +766,7 @@ write.csv(mon.count, paste0("processed_data/",dat$Project.ID[1], "_",independent
   tmp <- row.lookup
   # Simplify the date to year-week
   tmp$Date <- strftime(tmp$Date, format = "%Y-W%U")
+  # The way this is coded is the counter W01 starts at the first sunday of the year, everything before that is W00. Weeks do not roll accross years.
   
   # Calculate the number of days in each week  
   week.obs <- tmp %>% 
