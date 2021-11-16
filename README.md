@@ -1,5 +1,5 @@
 # Single Site Exploration and data export
-R code to explore the data from WildCo standardised data.
+R code to explore the data from WildCo standardised data. The WildCo data standards are detail [here](https://docs.google.com/spreadsheets/d/1TP5ZHzp3EVE3SplrgC4mGzqQWly0cmro/edit?usp=sharing&ouid=116356192910674281375&rtpof=true&sd=true).
 
 **Note** to run this script on data exported from Wild3 you will first need to run the standardiser script: WildCo_DB_to_Standardized.R 
 
