@@ -5,7 +5,7 @@ library(readr)
 library(lubridate)
 
 # Set WD if not working in an R project (you should be!)
-setwd("D:/Mitch/JOFF/3.Data/3.4 Data Analysis/3.4.2 Inputs")
+#setwd("D:/Mitch/JOFF/3.Data/3.4 Data Analysis/3.4.2 Inputs")
 
 # Set project name
 proj_name <- "JOFF"
@@ -59,7 +59,7 @@ stations <- stations %>%
 
 # Add treatment column from deployments
 treatment <- select(deployment, Deployment.Location.ID, Treatment)
-# Select only first occurence, since we're pulling from all cam checks
+# Select only first occurrence, since we're pulling from all cam checks
 treatment <- treatment %>%
   group_by(Deployment.Location.ID) %>%
   filter(Deployment.Location.ID == min(Deployment.Location.ID)) %>%
@@ -67,6 +67,8 @@ treatment <- treatment %>%
   ungroup()
 
 stations <- left_join(stations, treatment, by = "Deployment.Location.ID")
+
+# Trim down
 stations <- select(stations, -station_tbl_id, -project_id)
 
 # Export to .csv
@@ -83,20 +85,21 @@ ud_dat <- filter(ud_dat, deleted == "f")
 # rename to standardized columns
 colnames(ud_dat)
 
-names(ud_dat)[names(ud_dat)=="project_id"] <- "Project.ID"
-names(ud_dat)[names(ud_dat)=="station_id"] <- "Deployment.Location.ID"
-names(ud_dat)[names(ud_dat)=="orig_file"] <- "Image.ID"
-names(ud_dat)[names(ud_dat)=="misfire"] <- "Blank"
-names(ud_dat)[names(ud_dat)=="latin_name"] <- "Species"
-names(ud_dat)[names(ud_dat)=="common_names"] <- "Species.Common.Name"
-names(ud_dat)[names(ud_dat)=="age_category"] <- "Age"
-names(ud_dat)[names(ud_dat)=="exif_timestamp"] <- "Date_Time.Captured"
-names(ud_dat)[names(ud_dat)=="sex"] <- "Sex"
-names(ud_dat)[names(ud_dat)=="behaviour"] <- "Behaviour"
-names(ud_dat)[names(ud_dat)=="group_count"] <- "Minimum.Group.Size"
-names(ud_dat)[names(ud_dat)=="species_count"] <- "Number.of.Animals"
-names(ud_dat)[names(ud_dat)=="collar"] <- "Collar"
-names(ud_dat)[names(ud_dat)=="collar_tags"] <- "Collar.ID"
+ud_dat <- ud_dat %>%
+  rename(Project.ID = project_id,
+         Deployment.Location.ID = station_id,
+         Image.ID = orig_file,
+         Blank = misfire,
+         Species = latin_name,
+         Species.Common.Name = common_names,
+         Age = age_category,
+         Date_Time.Captured = exif_timestamp,
+         Sex = sex,
+         Behaviour = behaviour,
+         Minimum.Group.Size = group_count,
+         Number.of.Animals = species_count,
+         Collar = collar,
+         Collar.ID = collar_tags)
 
 # remove blank images and misfires
 ud_dat$Blank[ud_dat$Blank=="f"] <- F
@@ -128,8 +131,7 @@ ud_dat <- select(ud_dat,
                  Behaviour,
                  Collar,
                  Collar.ID,
-                 comments
-)
+                 comments)
 
-# Change date and write to csv
+# Write to csv
 write.csv(ud_dat, paste0("raw_data/",proj_name,"_detection_data.csv"), row.names = F)
