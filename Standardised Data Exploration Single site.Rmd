@@ -8,7 +8,7 @@ knit: (function(inputFile, encoding) {
       dat <- read.csv("raw_data/Example_detection_data.csv", header=T);
       rmarkdown::render(inputFile,
                         encoding=encoding, 
-                        output_file=file.path(dirname(inputFile), paste0(dat$Project.ID[1],'_',Sys.Date(), '.html'))) })  
+                        output_file=file.path(dirname(inputFile), paste0(dat$Project.ID[1],'_Exploration_',Sys.Date(), '.html'))) })  
 ---
 
 ```{r setup and tests, include=FALSE, warnings=F, message=F}
