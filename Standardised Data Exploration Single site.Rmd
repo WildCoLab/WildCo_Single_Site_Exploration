@@ -1,18 +1,25 @@
 ---
 title: "Data Exploration"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
-output: html_document
 editor_options: 
   chunk_output_type: console
+output: html_document
+knit: (function(inputFile, encoding) { 
+      dat <- read.csv("raw_data/Example_detection_data.csv", header=T);
+      rmarkdown::render(inputFile,
+                        encoding=encoding, 
+                        output_file=file.path(dirname(inputFile), paste0(dat$Project.ID[1],'_',Sys.Date(), '.html'))) })  
 ---
 
 ```{r setup and tests, include=FALSE, warnings=F, message=F}
+
+# !!!!!!!!! PLEASE ALSO CHANGE THE FILE NAME IN THE HEADER ABOVE FOR CORRECT FILE NAMING !!!!!!!!!!!!!! #
 
 ## README FIRST ##
 #Read and run this chunk of code line by line in the R Console (do not press knit) - there are some questions below which you will have to answer and some logic tests to complete. Once you are happy that the conditions have been satisfied, hit 'knit' above. 
 
 # Load your data [change the files paths to your data locations]
-dat <- read.csv("raw_data/Example_detection_data.csv", header=T)
+dat <- read.csv("raw_data/Example_detection_data.csv", header=T) # ALSO CHANGE IN THE HEADER ABOVE
 eff <- read.csv("raw_data/Example_deployment_data.csv", header=T)
 sta <- read.csv("raw_data/Example_station_data.csv", header=T)
 
@@ -78,6 +85,9 @@ length(setdiff(eff$Deployment.Location.ID, sta$Deployment.Location.ID))
 ```
 
 
+
+
+
 ```{r non-adjustable options, echo=F, include=F}
 
 # Prepare dates
@@ -91,7 +101,7 @@ eff$Days <- as.numeric(round(difftime(eff$Camera.Deployment.End.Date, eff$Camera
 
 dat$Date_Time.Captured <- ymd_hms(dat$Date_Time.Captured, truncated=2, tz=tz)
 
-# Count the number of camera ststions
+# Count the number of camera stations
 n.stat <- length(unique(eff$Deployment.Location.ID))
 
 # Generate colours to display the catagory levels - R needs them as a factor
@@ -116,6 +126,8 @@ if(length(unique(dat$Species))>20)
 ```
 
 ## `r dat$Project.ID[1]` Project
+
+
 
 ### Camera locations
 
