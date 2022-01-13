@@ -23,7 +23,7 @@ dat <- read.csv("raw_data/Example_detection_data.csv", header=T) # ALSO CHANGE I
 eff <- read.csv("raw_data/Example_deployment_data.csv", header=T)
 sta <- read.csv("raw_data/Example_station_data.csv", header=T)
 
-# Create an ouput folder 
+# Create an output folder 
 dir.create("processed_data/")
 
 # Timezone [Use UTC if your cameras do not correct for daylight saving time, if they do use the timezone where the data was collected]
@@ -32,8 +32,8 @@ tz <- "UTC"
 # Set the "independence" interval in minutes
 independent <- 30
 
-# Set a single catagorical variable of interest from station covariates for summary graphs. If you do not have and appropriate catagory use "Project.ID".
-category <- "Treatment"
+# Set a single categorical variable of interest from station covariates for summary graphs. If you do not have and appropriate category use "Project.ID".
+category <- "Treatment" # Typical WildCo options: Feature.Type  Bait.Type
 
 # Define a colour from the R options to base the colourscheme
 colour <- "lightseagreen"
@@ -281,6 +281,46 @@ for(j in 1:length(unique(eff$Plot.grp)))
 }
 
 ```
+
+### Temporal activity check
+The following plot allows you to explore if you are getting animal detections when you would expect to get them. E.g. Common opossums should predominantly be detected at night.
+
+
+```{r}
+sp.order <- rev(sort(unique(dat$Species)))
+tmp4 <- data.frame("Species"=sp.order, "Plot.grp"=ceiling(1:length(unique(dat$Species))/20))
+
+i <-1
+for(j in 1:length(unique(tmp4$Plot.grp)))
+{
+    layout(matrix(c(1,1,1,2), 1, 4, byrow = TRUE))
+    par(mar=c(2,12,1,1))
+    
+    plot(c(0,24),c(1,length(unique(dat$Species[tmp4$Plot.grp==j]))), las=1, ylab="", xlab="", type="n", yaxt="n", xaxt="n")
+    axis(1, at=c(0,6,12,18,24), labels=c("00:00", "06:00", "12:00", "18:00", "24:00"))
+    
+    axis(2, at= 1:length(unique(dat$Species[tmp4$Plot.grp==j])), labels= unique(tmp4$Species[tmp4$Plot.grp==j]), las=1, cex.axis=1)
+    abline(v=6, lty=2,col=rgb(0,0,0,0.5))
+    abline(v=18, lty=2,col=rgb(0,0,0,0.5) )
+    #mtext("Camera Deployment ID", 2, 4)
+    # Make lines for each of the cameras
+    for(i in 1:length(unique(tmp4$Species[tmp4$Plot.grp==j])))
+    {
+      abline(h=i, col=rgb(0,0,0,0.1))
+      
+      #tmp <- eff[eff$Deployment.Location.ID==unique(eff$Deployment.Location.ID[eff$Plot.grp==j])[i],]
+      
+      tmp2 <- dat[dat$Species==tmp4$Species[i],]
+      tmp2$Hours <- hour(tmp2$Date_Time.Captured) + minute(tmp2$Date_Time.Captured)/60 + second(tmp2$Date_Time.Captured)/(60*60) 
+
+      points(tmp2$Hours, rep(i,nrow(tmp2)), pch=19, col= "#20B2AA20")
+    
+    
+    }
+}
+
+```
+
 
 ## Species metadata
 Of the images classfied as containing animals, the proportion of photographs assigned to the following catagories are as follows:
