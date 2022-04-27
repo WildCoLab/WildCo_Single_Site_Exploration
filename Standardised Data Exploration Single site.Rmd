@@ -288,18 +288,18 @@ The following plot allows you to explore if you are getting animal detections wh
 
 ```{r}
 sp.order <- rev(sort(unique(dat$Species)))
-tmp4 <- data.frame("Species"=sp.order, "Plot.grp"=ceiling(1:length(unique(dat$Species))/20))
+tmp4 <- data.frame("Species"=rev(sp.order), "Plot.grp"=ceiling(1:length(unique(dat$Species))/20))
 
-i <-1
+j <-1
 for(j in 1:length(unique(tmp4$Plot.grp)))
 {
     layout(matrix(c(1,1,1,2), 1, 4, byrow = TRUE))
     par(mar=c(2,12,1,1))
     
-    plot(c(0,24),c(1,length(unique(dat$Species[tmp4$Plot.grp==j]))), las=1, ylab="", xlab="", type="n", yaxt="n", xaxt="n")
+    plot(c(0,24),c(1,length(unique(tmp4$Species[tmp4$Plot.grp==j]))), las=1, ylab="", xlab="", type="n", yaxt="n", xaxt="n")
     axis(1, at=c(0,6,12,18,24), labels=c("00:00", "06:00", "12:00", "18:00", "24:00"))
     
-    axis(2, at= 1:length(unique(dat$Species[tmp4$Plot.grp==j])), labels= unique(tmp4$Species[tmp4$Plot.grp==j]), las=1, cex.axis=1)
+    axis(2, at= 1:length(unique(tmp4$Species[tmp4$Plot.grp==j])), labels= unique(tmp4$Species[tmp4$Plot.grp==j]), las=1, cex.axis=1)
     abline(v=6, lty=2,col=rgb(0,0,0,0.5))
     abline(v=18, lty=2,col=rgb(0,0,0,0.5) )
     #mtext("Camera Deployment ID", 2, 4)
@@ -318,7 +318,6 @@ for(j in 1:length(unique(tmp4$Plot.grp)))
     
     }
 }
-
 ```
 
 
