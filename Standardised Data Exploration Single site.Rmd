@@ -19,9 +19,14 @@ knit: (function(inputFile, encoding) {
 #Read and run this chunk of code line by line in the R Console (do not press knit) - there are some questions below which you will have to answer and some logic tests to complete. Once you are happy that the conditions have been satisfied, hit 'knit' above. 
 
 # Load your data [change the files paths to your data locations]
+# dat <- read.csv("raw_data/Example_detection_data.csv", header=T) # ALSO CHANGE IN THE HEADER ABOVE
+# eff <- read.csv("raw_data/Example_deployment_data.csv", header=T)
+# sta <- read.csv("raw_data/Example_station_data.csv", header=T)
+
 dat <- read.csv("raw_data/Example_detection_data.csv", header=T) # ALSO CHANGE IN THE HEADER ABOVE
 eff <- read.csv("raw_data/Example_deployment_data.csv", header=T)
 sta <- read.csv("raw_data/Example_station_data.csv", header=T)
+
 
 # Create an output folder 
 dir.create("processed_data/")
@@ -38,6 +43,9 @@ category <- "Treatment" # Typical WildCo options: Feature.Type  Bait.Type
 # Define a colour from the R options to base the colourscheme
 colour <- "lightseagreen"
 
+# Do you want to output an additional dataframe with independent events broken down by sex and age groups?
+ind_sex_age_output <- TRUE
+
 ##############################################################
 ##### DATA TESTS #############################################
 ##############################################################
@@ -45,7 +53,7 @@ colour <- "lightseagreen"
 # This code will not work unless your data passes the following checks
 
 #Load Packages
-list.of.packages <- c("leaflet", "dplyr", "viridis", "kriging", "corrplot", "lubridate", "kableExtra")
+list.of.packages <- c("leaflet", "dplyr", "viridis", "kriging", "corrplot", "lubridate", "kableExtra", "purrr", "tidyr")
 
 # Check you have them and load them
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
@@ -437,7 +445,11 @@ legend("topleft", legend=row.names(tmp), fill=cols, xpd=TRUE, cex=1.1 )
 
 ## Independent camera detections
 ```{r indepedents, echo=F, eval=T, message = F, warning = F}
-# Remove onservations without animals detected
+
+# save this version of dat for next chunk
+dat_pre_ind <- dat
+
+# Remove observations without animals detected
 dat <- dat[dat$Blank==FALSE & is.na(dat$Species)==FALSE,]
 dat$Species <- as.character(dat$Species)
 dat$Deployment.Location.ID <- as.character(dat$Deployment.Location.ID)
@@ -445,70 +457,83 @@ dat$Deployment.Location.ID <- as.character(dat$Deployment.Location.ID)
 # Order the datframe by Site, date
 dat <- dat[order(dat$Deployment.Location.ID, dat$Date_Time.Captured),]
 
+### NEW-NEW WAY (March 9, 2023)
 
-### NEW WAY
+# function with loop that calculates duration AND assigns group ID:
+func <- function(dat){
   dat <- dat %>%
-  #filter(Species == i) %>%
-  arrange(Project.ID,Deployment.Location.ID) %>%
-  group_by(Deployment.Location.ID, Species) %>%
-  mutate(duration = int_length(Date_Time.Captured %--% lag(Date_Time.Captured)))
-
-# loop that assign group ID
-dat$Event.ID <- 9999
+    mutate(duration = int_length(Date_Time.Captured %--% lag(Date_Time.Captured)))
+  
   mins <- independent
-  seq <- as.numeric(paste0(nrow(dat),0))
-  seq <- round(seq,-(nchar(seq)))
-for (i in 2:nrow(dat)) {
-  dat$Event.ID[i-1]  <- paste0("E",format(seq, scientific = F))
-  if(is.na(dat$duration[i]) | abs(dat$duration[i]) > (mins * 60)){
-    seq <- seq + 1
+  
+  event_ID <- c("E0")
+  if(nrow(dat) == 1){
+  }else{
+    seq <- 0
+    for(i in 2:nrow(dat)){
+      seq <- if_else(abs(dat$duration[i]) > (mins * 60), seq + 1, seq)
+      event_ID_temp <- paste0("E", seq)
+      event_ID <- c(event_ID, event_ID_temp)
+    }
   }
+
+  dat <- dat %>%
+    mutate(Event.ID = event_ID)
+  
+  return(dat)
 }
 
-# Update the information for the last row
-    # group ID  for the last row
- if(dat$duration[nrow(dat)] < (mins * 60)|
-    is.na(dat$duration[nrow(dat)])){
-   dat$Event.ID[nrow(dat)] <- dat$Event.ID[nrow(dat)-1]
- } else{
-   dat$Event.ID[nrow(dat)] <- paste0("E",format(seq+1, scientific = F))
- }
+dat <- dat %>%
+  group_nest(Deployment.Location.ID, Species) %>%
+  mutate(data = map(.x = data, 
+                    .f =~ func(.x))) %>%
+  unnest(data) %>% 
+  #need Event.IDs to all be unique:
+  mutate(Event.ID = paste(Event.ID, Deployment.Location.ID, Species, sep = "_"))
 
 # If there is no minimum groupsize take number of animals
 if(!"Minimum.Group.Size" %in% colnames(dat)) {dat$Minimum.Group.Size <- dat$Number.of.Animals}
 
 # Calculate the event length and size
 
-  # find out the last and the first of the time in the group
-  top <- dat %>% group_by(Event.ID) %>% top_n(1,Date_Time.Captured) %>% select(Event.ID, Date_Time.Captured)
-  bot <- dat %>% group_by(Event.ID) %>% top_n(-1,Date_Time.Captured) %>% select(Event.ID, Date_Time.Captured)
-  names(bot)[2] <- c("Date_Time.Captured_end")
-  dec_no <- dat %>% group_by(Event.ID) %>% summarise(n())
-  event_grp <- dat %>% group_by(Event.ID) %>% summarise(max(Minimum.Group.Size))
+# find out the last and the first of the time in the group
+top <- dat %>% group_by(Event.ID) %>% top_n(1,Date_Time.Captured) %>% select(Event.ID, Date_Time.Captured)
+bot <- dat %>% group_by(Event.ID) %>% top_n(-1,Date_Time.Captured) %>% select(Event.ID, Date_Time.Captured)
+names(bot)[2] <- c("Date_Time.Captured_end")
+dec_no <- dat %>% group_by(Event.ID) %>% summarise(n())
 
-  # caculate the duration
-  diff <-  top %>% left_join(bot, by="Event.ID") %>%
-      mutate(duration=abs(int_length(Date_Time.Captured %--% Date_Time.Captured_end))) %>%
-      left_join(event_grp, by="Event.ID")%>%
-      left_join(dec_no, by="Event.ID")
+### NEW WAY - find group size across age and sex classes in event
+event_grp <- dat %>% 
+  # don't want to double count blanks and unknowns:
+  mutate(if_else(Sex == "", "unknown", Sex),
+         if_else(Age == "", "unknown", Age)) %>% 
+  group_by(Event.ID, Sex, Age) %>%
+  summarise(Minimum.Group.Size = max(Minimum.Group.Size)) %>% 
+  group_by(Event.ID) %>% 
+  summarise(total_group_size = sum(Minimum.Group.Size))
 
-  # Remove duplicates
-  diff <- diff[duplicated(diff)==FALSE,]
 
-  names(diff) <- c("Event.ID","Date_Time.end","Date_Time.start","Event.Duration","Event.Groupsize","Event.Observations")
-  diff$Date_Time.end<-NULL;diff$Date_Time.start<-NULL
-  dat$duration <-NULL
-  # Merge the data
-  dat <-  dat %>%
-   left_join(diff,by="Event.ID")
+# calculate the duration
+diff <-  top %>% left_join(bot, by="Event.ID") %>%
+  mutate(duration=abs(int_length(Date_Time.Captured %--% Date_Time.Captured_end))) %>%
+  left_join(event_grp, by="Event.ID")%>%
+  left_join(dec_no, by="Event.ID")
+
+# Remove duplicates
+diff <- diff[duplicated(diff)==FALSE,]
+
+names(diff) <- c("Event.ID","Date_Time.end","Date_Time.start","Event.Duration","Event.Groupsize","Event.Observations")
+diff$Date_Time.end<-NULL;diff$Date_Time.start<-NULL
+dat$duration <-NULL
+# Merge the data
+dat <-  dat %>%
+  left_join(diff,by="Event.ID")
+
 
 # Subset to the first observation in each event
-
-  # Subset to independent observations using your chosen threshold
 ind.dat <- dat[!duplicated(dat$Event.ID),]
 ind.dat <- as.data.frame(ind.dat)
 ind.dat$Species <-as.factor(ind.dat$Species)
-
 
 # Remove all observations with occur outside of camera activity schedules
 # We need to know how many detections there are in each month -> create a row lookup
@@ -544,9 +569,121 @@ write.csv(ind.dat, paste0("processed_data/",dat$Project.ID[1], "_",independent ,
 # Also export the effort lookup
 write.csv(row.lookup, paste0("processed_data/",dat$Project.ID[1], "_daily_effort_lookup.csv"), row.names = F)
 
-
-
 ```
+
+
+## Independent camera detections by sex and age classes
+```{r indepedent by sex and age, echo=F, eval=T, message = F, warning = F}
+
+### NOTE - the total count of individuals in this data frame may differ slightly from that in ind.dat if there are gaps greater than your independence threshold between detections of the same age and sex class, but not in the species as a whole.
+
+if(ind_sex_age_output == TRUE){
+  
+dat_sa <- dat_pre_ind %>% 
+  # don't want to double count blanks and unknowns:
+  mutate(if_else(Sex == "", "unknown", Sex),
+         if_else(Age == "", "unknown", Age))
+
+# Remove observations without animals detected
+dat_sa <- dat_sa[dat_sa$Blank==FALSE & is.na(dat_sa$Species)==FALSE,]
+dat_sa$Species <- as.character(dat_sa$Species)
+dat_sa$Deployment.Location.ID <- as.character(dat_sa$Deployment.Location.ID)
+
+# Order the datframe by Site, date
+dat_sa <- dat_sa[order(dat_sa$Deployment.Location.ID, dat_sa$Date_Time.Captured),]
+
+### NEW-NEW WAY (March 9, 2023)
+
+# function with loop that calculates duration AND assigns group ID:
+func2 <- function(dat){
+  dat <- dat %>%
+    mutate(duration = int_length(Date_Time.Captured %--% lag(Date_Time.Captured)))
+  
+  mins <- independent
+  
+  event_ID <- c("E0")
+  if(nrow(dat) == 1){
+  }else{
+    seq <- 0
+    for(i in 2:nrow(dat)){
+      seq <- if_else(abs(dat$duration[i]) > (mins * 60), seq + 1, seq)
+      event_ID_temp <- paste0("E", seq)
+      event_ID <- c(event_ID, event_ID_temp)
+    }
+  }
+
+  dat <- dat %>%
+    mutate(Event.ID = event_ID)
+  
+  return(dat)
+}
+
+dat_sa <- dat_sa %>%
+  group_nest(Deployment.Location.ID, Species, Age, Sex) %>%
+  mutate(data = map(.x = data, 
+                    .f =~ func2(.x))) %>%
+  unnest(data) %>% 
+  #need Event.IDs to all be unique:
+  mutate(Event.ID = paste(Event.ID, Deployment.Location.ID, 
+                          Species, Sex, Age, sep = "_"))
+
+# If there is no minimum groupsize take number of animals
+if(!"Minimum.Group.Size" %in% colnames(dat_sa)) {dat_sa$Minimum.Group.Size <- dat_sa$Number.of.Animals}
+
+# Calculate the event length and size
+
+# find out the last and the first of the time in the group
+top <- dat_sa %>% group_by(Event.ID) %>% top_n(1,Date_Time.Captured) %>% select(Event.ID, Date_Time.Captured)
+bot <- dat_sa %>% group_by(Event.ID) %>% top_n(-1,Date_Time.Captured) %>% select(Event.ID, Date_Time.Captured)
+names(bot)[2] <- c("Date_Time.Captured_end")
+dec_no <- dat_sa %>% group_by(Event.ID) %>% summarise(n())
+
+### event group size
+event_grp <- dat_sa %>% 
+  group_by(Event.ID) %>%
+  summarise(Event.Groupsize = max(Minimum.Group.Size))
+
+# calculate the duration
+diff <-  top %>% left_join(bot, by="Event.ID") %>%
+  mutate(duration=abs(int_length(Date_Time.Captured %--% Date_Time.Captured_end))) %>%
+  left_join(event_grp, by="Event.ID")%>%
+  left_join(dec_no, by="Event.ID")
+
+# Remove duplicates
+diff <- diff[duplicated(diff)==FALSE,]
+
+names(diff) <- c("Event.ID","Date_Time.end","Date_Time.start","Event.Duration","Event.Groupsize","Event.Observations")
+diff$Date_Time.end<-NULL;diff$Date_Time.start<-NULL
+dat_sa$duration <-NULL
+# Merge the data
+dat_sa <-  dat_sa %>%
+  left_join(diff,by="Event.ID")
+
+
+# Subset to the first observation in each event
+ind.dat_sa <- dat_sa[!duplicated(dat_sa$Event.ID),]
+ind.dat_sa <- as.data.frame(ind.dat_sa)
+ind.dat_sa$Species <-as.factor(ind.dat_sa$Species)
+
+# Remove all observations which occur outside of camera activity schedules
+# We need to know how many detections there are in each month -> create a row lookup
+# This is just a list of every day a camera was active.
+
+# Make a dat/location lookup
+tmp <- row.lookup
+tmp <- paste(tmp$Date, tmp$Deployment.Location.ID)
+
+#Subset ind.dat_sa to data that only occurs when a camera is active
+ind.dat_sa <- ind.dat_sa[paste(as.Date(ind.dat_sa$Date_Time.Captured), ind.dat_sa$Deployment.Location.ID) %in% tmp, ]
+# Reset the factor levels
+ind.dat_sa$Species <- factor(ind.dat_sa$Species)
+
+# Save it for a rainy day
+write.csv(ind.dat_sa, paste0("processed_data/",dat$Project.ID[1], "_",independent ,"min_Independent_by_sex_age.csv"), row.names = F)
+
+}
+```
+
 
 Using an independance threshold of `r independent` minutes, the number of detections is reduced to `r nrow(ind.dat)`. The rest of the analyses are conducted with this data. The summary of detections is as follows:
 
@@ -577,7 +714,7 @@ abline(v=1, lty=2)
 ```{r group size, echo=F, eval=T,fig.height=sp.height}
 par(mfrow=c(1,1))
 par(mar=c(5,10,1,1))
-plot(jitter(as.numeric(ind.dat$Species))~jitter(ind.dat$Minimum.Group.Size), xlab="Minimum group size", yaxt="n", las=1, ylab="")
+plot(jitter(as.numeric(ind.dat$Species))~jitter(ind.dat$Event.Groupsize), xlab="Minimum group size", yaxt="n", las=1, ylab="")
 axis(2, 1:length(unique(ind.dat$Species)), labels=levels(ind.dat$Species), las=2, cex.axis=0.6)
 
 ```
@@ -851,30 +988,30 @@ write.csv(week.count, paste0("processed_data/",dat$Project.ID[1], "_",independen
 
 ```{r, echo=F, message=F, warning=F}
 # Daily format
-  # Station / Month / Effort / Covariates / Species      
+  # Station / Month / Effort / Covariates / Species
   tmp <- row.lookup
   tmp$Effort <- 1
-  # Add species columns  
+  # Add species columns
   tmp[, levels(ind.dat$Species)] <- NA
-  
+
   day.obs <- tmp
   day.count <- tmp
 # For each week, count the number of individuals/observations
   for(i in 1:nrow(day.obs))
     {
       tmp <- ind.dat[ind.dat$Deployment.Location.ID==day.obs$Deployment.Location.ID[i] & strftime(ind.dat$Date_Time.Captured, format = "%Y-%m-%d")== day.obs$Date[i],]
-      
-      
-      
+
+
+
       for(j in 1:length(levels(ind.dat$Species)))
       {
         day.obs[i,levels(ind.dat$Species)[j]] <- length(tmp$Species[tmp$Species==levels(ind.dat$Species)[j]])
         day.count[i,levels(ind.dat$Species)[j]] <- sum(tmp$Event.Groupsize[tmp$Species==levels(ind.dat$Species)[j]])
       }
     }
-write.csv(day.obs, paste0("processed_data/",dat$Project.ID[1], "_",independent ,"min_Independent_daily_observations.csv"), row.names = F) 
+write.csv(day.obs, paste0("processed_data/",dat$Project.ID[1], "_",independent ,"min_Independent_daily_observations.csv"), row.names = F)
 
-write.csv(day.count, paste0("processed_data/",dat$Project.ID[1], "_",independent ,"min_Independent_daily_counts.csv"), row.names = F) 
+write.csv(day.count, paste0("processed_data/",dat$Project.ID[1], "_",independent ,"min_Independent_daily_counts.csv"), row.names = F)
 
 ```
 
@@ -886,11 +1023,14 @@ If the code is working properly the total observations/counts should be the same
 ### Observations
 ```{r, echo=F}
 
-tmp <- cbind(data.frame("Time"=c("Total", "Monthly", "Weekly", "Daily")),
+tmp <- cbind(data.frame("Time"=c("Total", "Monthly", "Weekly"
+                                 #, "Daily"
+                                 )),
 rbind(colSums(total.obs[,2:ncol(total.obs)]),
 colSums(mon.obs[,3:ncol(mon.obs)]),
 colSums(week.obs[,3:ncol(week.obs)]),
-colSums(day.obs[,3:ncol(day.obs)])  ))
+colSums(day.obs[,3:ncol(day.obs)])
+))
 
 tmp %>%
   kbl() %>%
@@ -901,11 +1041,14 @@ tmp %>%
 
 ### Counts
 ```{r, echo=F}
-tmp <- cbind(data.frame("Time"=c("Total", "Monthly", "Weekly", "Daily")),
+tmp <- cbind(data.frame("Time"=c("Total", "Monthly", "Weekly"
+                                 #, "Daily"
+                                 )),
 rbind(colSums(total.count[,2:ncol(total.count)]),
 colSums(mon.count[,3:ncol(mon.count)]),
 colSums(week.count[,3:ncol(week.count)]),
-colSums(day.count[,3:ncol(day.count)])  ))
+colSums(day.count[,3:ncol(day.count)])
+))
 
 tmp %>%
   kbl() %>%
