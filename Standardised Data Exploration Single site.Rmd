@@ -505,8 +505,8 @@ dec_no <- dat %>% group_by(Event.ID) %>% summarise(n())
 ### NEW WAY - find group size across age and sex classes in event
 event_grp <- dat %>% 
   # don't want to double count blanks and unknowns:
-  mutate(if_else(Sex == "", "unknown", Sex),
-         if_else(Age == "", "unknown", Age)) %>% 
+  mutate(Sex = ifelse(Sex == "", "Unknown", Sex),
+         Age = ifelse(Age == "", "Unknown", Age)) %>% 
   group_by(Event.ID, Sex, Age) %>%
   summarise(Minimum.Group.Size = max(Minimum.Group.Size)) %>% 
   group_by(Event.ID) %>% 
@@ -529,6 +529,8 @@ dat$duration <-NULL
 dat <-  dat %>%
   left_join(diff,by="Event.ID")
 
+# Pause at this stage to export ind.dat separated by sex and age
+dat_Event.ID_pre_subsetting <- dat
 
 # Subset to the first observation in each event
 ind.dat <- dat[!duplicated(dat$Event.ID),]
@@ -575,113 +577,33 @@ write.csv(row.lookup, paste0("processed_data/",dat$Project.ID[1], "_daily_effort
 ## Independent camera detections by sex and age classes
 ```{r indepedent by sex and age, echo=F, eval=T, message = F, warning = F}
 
-### NOTE - the total count of individuals in this data frame may differ slightly from that in ind.dat if there are gaps greater than your independence threshold between detections of the same age and sex class, but not in the species as a whole.
-
 if(ind_sex_age_output == TRUE){
+  ind.dat_sa <- dat_Event.ID_pre_subsetting %>% 
+    mutate(Sex = ifelse(Sex == "", "Unknown", Sex),
+           Age = ifelse(Age == "", "Unknown", Age)) %>% 
+    group_by(Event.ID, Age, Sex) %>% 
+    mutate(Sex_Age_Groupsize = max(Minimum.Group.Size)) %>% 
+    slice_head(n = 1)
   
-dat_sa <- dat_pre_ind %>% 
-  # don't want to double count blanks and unknowns:
-  mutate(if_else(Sex == "", "unknown", Sex),
-         if_else(Age == "", "unknown", Age))
-
-# Remove observations without animals detected
-dat_sa <- dat_sa[dat_sa$Blank==FALSE & is.na(dat_sa$Species)==FALSE,]
-dat_sa$Species <- as.character(dat_sa$Species)
-dat_sa$Deployment.Location.ID <- as.character(dat_sa$Deployment.Location.ID)
-
-# Order the datframe by Site, date
-dat_sa <- dat_sa[order(dat_sa$Deployment.Location.ID, dat_sa$Date_Time.Captured),]
-
-### NEW-NEW WAY (March 9, 2023)
-
-# function with loop that calculates duration AND assigns group ID:
-func2 <- function(dat){
-  dat <- dat %>%
-    mutate(duration = int_length(Date_Time.Captured %--% lag(Date_Time.Captured)))
+  ind.dat_sa$Species <-as.factor(ind.dat_sa$Species)
   
-  mins <- independent
+  # Remove all observations which occur outside of camera activity schedules
+  # This is just a list of every day a camera was active.
   
-  event_ID <- c("E0")
-  if(nrow(dat) == 1){
-  }else{
-    seq <- 0
-    for(i in 2:nrow(dat)){
-      seq <- if_else(abs(dat$duration[i]) > (mins * 60), seq + 1, seq)
-      event_ID_temp <- paste0("E", seq)
-      event_ID <- c(event_ID, event_ID_temp)
-    }
-  }
-
-  dat <- dat %>%
-    mutate(Event.ID = event_ID)
+  # Make a dat/location lookup
+  tmp <- row.lookup
+  tmp <- paste(tmp$Date, tmp$Deployment.Location.ID)
   
-  return(dat)
+  #Subset ind.dat_sa to data that only occurs when a camera is active
+  ind.dat_sa <- ind.dat_sa[paste(as.Date(ind.dat_sa$Date_Time.Captured), ind.dat_sa$Deployment.Location.ID) %in% tmp, ]
+  # Reset the factor levels
+  ind.dat_sa$Species <- factor(ind.dat_sa$Species)
+  
+  # Save it for a rainy day
+  write.csv(ind.dat_sa, paste0("processed_data/",dat$Project.ID[1], "_",independent ,"min_Independent_by_sex_age.csv"), row.names = F)
+  
 }
 
-dat_sa <- dat_sa %>%
-  group_nest(Deployment.Location.ID, Species, Age, Sex) %>%
-  mutate(data = map(.x = data, 
-                    .f =~ func2(.x))) %>%
-  unnest(data) %>% 
-  #need Event.IDs to all be unique:
-  mutate(Event.ID = paste(Event.ID, Deployment.Location.ID, 
-                          Species, Sex, Age, sep = "_"))
-
-# If there is no minimum groupsize take number of animals
-if(!"Minimum.Group.Size" %in% colnames(dat_sa)) {dat_sa$Minimum.Group.Size <- dat_sa$Number.of.Animals}
-
-# Calculate the event length and size
-
-# find out the last and the first of the time in the group
-top <- dat_sa %>% group_by(Event.ID) %>% top_n(1,Date_Time.Captured) %>% select(Event.ID, Date_Time.Captured)
-bot <- dat_sa %>% group_by(Event.ID) %>% top_n(-1,Date_Time.Captured) %>% select(Event.ID, Date_Time.Captured)
-names(bot)[2] <- c("Date_Time.Captured_end")
-dec_no <- dat_sa %>% group_by(Event.ID) %>% summarise(n())
-
-### event group size
-event_grp <- dat_sa %>% 
-  group_by(Event.ID) %>%
-  summarise(Event.Groupsize = max(Minimum.Group.Size))
-
-# calculate the duration
-diff <-  top %>% left_join(bot, by="Event.ID") %>%
-  mutate(duration=abs(int_length(Date_Time.Captured %--% Date_Time.Captured_end))) %>%
-  left_join(event_grp, by="Event.ID")%>%
-  left_join(dec_no, by="Event.ID")
-
-# Remove duplicates
-diff <- diff[duplicated(diff)==FALSE,]
-
-names(diff) <- c("Event.ID","Date_Time.end","Date_Time.start","Event.Duration","Event.Groupsize","Event.Observations")
-diff$Date_Time.end<-NULL;diff$Date_Time.start<-NULL
-dat_sa$duration <-NULL
-# Merge the data
-dat_sa <-  dat_sa %>%
-  left_join(diff,by="Event.ID")
-
-
-# Subset to the first observation in each event
-ind.dat_sa <- dat_sa[!duplicated(dat_sa$Event.ID),]
-ind.dat_sa <- as.data.frame(ind.dat_sa)
-ind.dat_sa$Species <-as.factor(ind.dat_sa$Species)
-
-# Remove all observations which occur outside of camera activity schedules
-# We need to know how many detections there are in each month -> create a row lookup
-# This is just a list of every day a camera was active.
-
-# Make a dat/location lookup
-tmp <- row.lookup
-tmp <- paste(tmp$Date, tmp$Deployment.Location.ID)
-
-#Subset ind.dat_sa to data that only occurs when a camera is active
-ind.dat_sa <- ind.dat_sa[paste(as.Date(ind.dat_sa$Date_Time.Captured), ind.dat_sa$Deployment.Location.ID) %in% tmp, ]
-# Reset the factor levels
-ind.dat_sa$Species <- factor(ind.dat_sa$Species)
-
-# Save it for a rainy day
-write.csv(ind.dat_sa, paste0("processed_data/",dat$Project.ID[1], "_",independent ,"min_Independent_by_sex_age.csv"), row.names = F)
-
-}
 ```
 
 
