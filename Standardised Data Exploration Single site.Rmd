@@ -579,8 +579,8 @@ write.csv(row.lookup, paste0("processed_data/",dat$Project.ID[1], "_daily_effort
 
 if(ind_sex_age_output == TRUE){
   ind.dat_sa <- dat_Event.ID_pre_subsetting %>% 
-    mutate(Sex = ifelse(Sex == "", "Unknown", Sex),
-           Age = ifelse(Age == "", "Unknown", Age)) %>% 
+    mutate(Sex = if_else(Sex == "", "Unknown", as.character(Sex)),
+           Age = if_else(Age == "", "Unknown", as.character(Age))) %>% 
     group_by(Event.ID, Age, Sex) %>% 
     mutate(Sex_Age_Groupsize = max(Minimum.Group.Size)) %>% 
     slice_head(n = 1)
