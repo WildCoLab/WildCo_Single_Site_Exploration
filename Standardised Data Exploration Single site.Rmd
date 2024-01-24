@@ -46,6 +46,9 @@ colour <- "lightseagreen"
 # Do you want to output an additional dataframe with independent events broken down by sex and age groups?
 ind_sex_age_output <- TRUE
 
+# Do you want to create additional summary plots excluding human data?
+plot_without_humans <- TRUE
+
 ##############################################################
 ##### DATA TESTS #############################################
 ##############################################################
@@ -53,7 +56,7 @@ ind_sex_age_output <- TRUE
 # This code will not work unless your data passes the following checks
 
 #Load Packages
-list.of.packages <- c("leaflet", "dplyr", "viridis", "kriging", "corrplot", "lubridate", "kableExtra", "purrr", "tidyr")
+list.of.packages <- c("leaflet", "dplyr", "viridis", "kriging", "corrplot", "lubridate", "kableExtra", "purrr", "tidyr", "hms")
 
 # Check you have them and load them
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
@@ -627,6 +630,35 @@ barplot(det.sum.total$Locations/n.stat, las=1, cex.names=0.7, xlab="Proportion o
 abline(v=1, lty=2)
 
 ```
+
+The summary of detections after excluding humans is as follows:
+
+```{r ind captures no humans, echo=F, fig.height=sp.height, eval=T}
+if(plot_without_humans == TRUE){
+
+ind.dat_no_humans <- filter(ind.dat, Species != "Homo sapiens")
+
+layout(matrix(c(1,1,2), 1, 3, byrow = TRUE))
+det.sum.total <- as.data.frame(count(ind.dat_no_humans[ind.dat_no_humans$Blank==FALSE,], Species))
+det.sum.total <- det.sum.total[order(det.sum.total$n),]
+
+par(mar=c(5,16,1,1))
+barplot(det.sum.total$n, names.arg = paste0(det.sum.total$Species,
+                                           " (n =", det.sum.total$n,")"), las=1, cex.names=1, xlab="Total detections", horiz=T)
+i <-1
+for(i in 1:nrow(det.sum.total))
+{
+  tmp <- subset(ind.dat, Species==det.sum.total$Species[i])
+  det.sum.total$Locations[i] <- length(unique(tmp$Deployment.Location.ID))
+}
+par(mar=c(5,1,1,1))
+
+barplot(det.sum.total$Locations/n.stat, las=1, cex.names=0.7, xlab="Proportion of sites detected", horiz=T, xlim=c(0,1))
+abline(v=1, lty=2)
+
+}
+```
+
 
 ## Group size distribution
 
