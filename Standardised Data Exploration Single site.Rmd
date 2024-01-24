@@ -10,17 +10,196 @@ knit: (function(inputFile, encoding) {
                         encoding=encoding, 
                         output_file=file.path(dirname(inputFile), paste0(dat$Project.ID[1],'_Exploration_',Sys.Date(), '.html'))) })  
 ---
-
-```{r setup and tests, include=FALSE, warnings=F, message=F}
-
 # !!!!!!!!! PLEASE ALSO CHANGE THE FILE NAME IN THE HEADER ABOVE FOR CORRECT FILE NAMING !!!!!!!!!!!!!! #
 
 ## README FIRST ##
 #Read and run this chunk of code line by line in the R Console (do not press knit) - there are some questions below which you will have to answer and some logic tests to complete. Once you are happy that the conditions have been satisfied, hit 'knit' above. 
 
+STEP 1: The code chunk below can be used to create the camera effort "eff" csv for camera effort - this will need to be run before running the rest of the data prep code. Once this has been run with the most recent data export, it does not have to be re-run. 
+```{r snow coverage and camera effort}
+#####SNOW COVERAGE/VIEW OBSTRUCTED AND CAMERA EFFORT#####
+##This script was prepared to calculate camera effort and help assess how much time the camera was covered while it was deployed (eg. cam was covered with snow or the view was fully obstructed).
+##Prepared by: Madeleine Wrazej 
+##Last modified: 2023-10-25
+
+#Load Packages
+list.of.packages <- c("leaflet", "dplyr", "viridis", "kriging", "lubridate", "kableExtra","tidyverse", "ggplot2")
+
+# Check you have them and load them
+new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
+if(length(new.packages)) install.packages(new.packages)
+lapply(list.of.packages, require, character.only = TRUE)
+
+getwd()
+##call up original image_idents data 
+tmp.dat <- read.csv("raw_data/images.csv") #this is from the 
+
+# Create a new data frame with specific columns
+tmp.dat <- tmp.dat %>%
+  select(station_id, orig_file, timestamp_pst, image_trigger, misfire)%>%
+  rename(Deployment.Location.ID = station_id,
+         Image.ID = orig_file,
+         Date_Time.Captured = timestamp_pst,
+         Image_Trigger = image_trigger, 
+         Blank = misfire)
+
+#ensure date format is correct 
+ymd_hms(tmp.dat$Date_Time.Captured[1],truncated=2)
+
+#show all days when cam non-functional using timelapse images  - this should be when timelapse is a misfire
+# Extract rows where image_trigger is "Timelapse"
+tl.data <- tmp.dat %>%
+  filter(Image_Trigger == "Time Lapse")
+
+# Count the number of times misfire = "t"
+misfire_count <- sum(tl.data$Blank == "t")
+
+snow_cov <-tl.data %>%
+  filter(Blank == "t")
+
+# Convert 'Date_Time.Captured' to datetime format
+snow_cov$Date_Time.Captured <- as.POSIXct(snow_cov$Date_Time.Captured, format = "%Y-%m-%d %H:%M:%S")
+
+# Sort the data by Location ID and Date
+snow_cov <- snow_cov %>%
+  arrange(`Deployment.Location.ID`, `Date_Time.Captured`)
+
+# Define a function to check consecutive days
+get_consecutive_dates <- function(date_vector) {
+  # Calculate the difference between consecutive dates
+  diff_dates <- c(0, diff(date_vector))
+  
+  # Identify transitions from non-consecutive to consecutive dates
+  start_indices <- which(diff_dates != 1)
+  end_indices <- c(start_indices - 1, length(date_vector))
+  
+  # Extract start and end dates
+  Camera.Deployment.Begin.Dates <- date_vector[start_indices]
+  Camera.Deployment.End.Dates <- date_vector[end_indices]
+  
+  return(tibble(Snow.cov_Camera.Deployment.Begin.Date = Camera.Deployment.Begin.Dates, Snow.cov_Camera.Deployment.End.Date = Camera.Deployment.End.Dates))
+}
+
+# Group by Location ID and apply the function
+snow_cov <- snow_cov %>%
+  group_by(`Deployment.Location.ID`) %>%
+  summarise(Start_Camera.Deployment.End.Dates = list(get_consecutive_dates(`Date_Time.Captured`))) %>%
+  unnest(cols = c(Start_Camera.Deployment.End.Dates))
+
+# Assuming snow_cov is your data frame
+snow_cov <- snow_cov %>%
+  mutate(Snow.cov_Camera.Deployment.Begin.Date = as.Date(Snow.cov_Camera.Deployment.Begin.Date),
+         Snow.cov_Camera.Deployment.End.Date = as.Date(Snow.cov_Camera.Deployment.End.Date)) %>%
+  group_by(Deployment.Location.ID) %>%
+  mutate(Date_Group = cumsum(c(1, diff(Snow.cov_Camera.Deployment.Begin.Date) != 1))) %>%
+  group_by(Deployment.Location.ID, Date_Group) %>%
+  summarise(Snow.cov_Camera.Deployment.Begin.Date = min(Snow.cov_Camera.Deployment.Begin.Date), Snow.cov_Camera.Deployment.End.Date = max(Snow.cov_Camera.Deployment.End.Date)) %>%
+  ungroup() %>%
+  select(Deployment.Location.ID, Snow.cov_Camera.Deployment.Begin.Date, Snow.cov_Camera.Deployment.End.Date) %>%
+  distinct()
+
+# Print the result
+print(snow_cov)
+
+# Assuming snow_cov is your data frame
+snow_cov$Snow.cov_Camera.Deployment.Begin.Date <- as.Date(snow_cov$Snow.cov_Camera.Deployment.Begin.Date)
+snow_cov$Snow.cov_Camera.Deployment.End.Date <- as.Date(snow_cov$Snow.cov_Camera.Deployment.End.Date)
+
+
+# Print the result
+print(snow_cov)
+
+# Assuming snow_cov is your data frame and Camera.Deployment.Begin.Date/Camera.Deployment.End.Date are in date format
+ggplot(snow_cov, aes(x = Snow.cov_Camera.Deployment.Begin.Date, y = Deployment.Location.ID)) +
+  geom_segment(aes(xend = Snow.cov_Camera.Deployment.End.Date, yend = Deployment.Location.ID), color = "blue", size = 1) +
+  geom_point(aes(color = Deployment.Location.ID), size = 2) +
+  scale_x_date(date_breaks = "1 month", date_labels = "%b %Y") +
+  labs(x = "Month-Year", y = "Deployment.Location.ID", title = "Snow Coverage") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+
+#this creates a csv file showing all of the days that a camera was snow covered 
+write.csv(snow_cov, "processed_data/snow_coverage.csv")
+
+######Determining Camera Effort from Timelapse Images#####
+cam_eff <-tl.data %>%
+  filter(Blank == "f")
+
+# Convert 'Date_Time.Captured' to datetime format
+cam_eff$Date_Time.Captured <- as.POSIXct(cam_eff$Date_Time.Captured, format = "%Y-%m-%d %H:%M:%S")
+
+# Sort the data by Location ID and Date
+cam_eff <- cam_eff %>%
+  arrange(`Deployment.Location.ID`, `Date_Time.Captured`)
+
+# Define a function to check consecutive days
+get_consecutive_dates <- function(date_vector) {
+  # Calculate the difference between consecutive dates
+  diff_dates <- c(0, diff(date_vector))
+  
+  # Identify transitions from non-consecutive to consecutive dates
+  start_indices <- which(diff_dates != 1)
+  end_indices <- c(start_indices - 1, length(date_vector))
+  
+  # Extract start and end dates
+  Camera.Deployment.Begin.Dates <- date_vector[start_indices]
+  Camera.Deployment.End.Dates <- date_vector[end_indices]
+  
+  return(tibble(Camera.Deployment.Begin.Date = Camera.Deployment.Begin.Dates, Camera.Deployment.End.Date = Camera.Deployment.End.Dates))
+}
+
+# Group by Location ID and apply the function
+cam_eff <- cam_eff %>%
+  group_by(`Deployment.Location.ID`) %>%
+  summarise(Start_Camera.Deployment.End.Dates = list(get_consecutive_dates(`Date_Time.Captured`))) %>%
+  unnest(cols = c(Start_Camera.Deployment.End.Dates))
+
+# Assuming cam eff is your data frame
+cam_eff <- cam_eff %>%
+  mutate(Camera.Deployment.Begin.Date = as.Date(Camera.Deployment.Begin.Date),
+         Camera.Deployment.End.Date = as.Date(Camera.Deployment.End.Date)) %>%
+  group_by(Deployment.Location.ID) %>%
+  mutate(Date_Group = cumsum(c(1, diff(Camera.Deployment.Begin.Date) != 1))) %>%
+  group_by(Deployment.Location.ID, Date_Group) %>%
+  summarise(Camera.Deployment.Begin.Date = min(Camera.Deployment.Begin.Date), Camera.Deployment.End.Date = max(Camera.Deployment.End.Date)) %>%
+  ungroup() %>%
+  select(Deployment.Location.ID, Camera.Deployment.Begin.Date, Camera.Deployment.End.Date) %>%
+  distinct()
+
+# Print the result
+print(cam_eff)
+
+# Assuming snow_cov is your data frame
+cam_eff$Camera.Deployment.Begin.Date <- as.Date(cam_eff$Camera.Deployment.Begin.Date)
+cam_eff$Camera.Deployment.End.Date <- as.Date(cam_eff$Camera.Deployment.End.Date)
+
+
+# Print the result
+print(cam_eff)
+
+
+# Assuming snow_cov is your data frame and Camera.Deployment.Begin.Date/Camera.Deployment.End.Date are in date format
+ggplot(cam_eff, aes(x = Camera.Deployment.Begin.Date, y = Deployment.Location.ID)) +
+  geom_segment(aes(xend = Camera.Deployment.End.Date, yend = Deployment.Location.ID), color = "blue", size = 1) +
+  geom_point(aes(color = Deployment.Location.ID), size = 2) +
+  scale_x_date(date_breaks = "1 month", date_labels = "%b %Y") +
+  labs(x = "Month-Year", y = "Deployment.Location.ID", title = "Camera Effort") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+eff <- cam_eff
+
+#this produced the eff file that can be used for camera effort
+write.csv(eff, "raw_data/eff.csv")
+
+``` 
+Read in data - get set up and make sure everything is working 
+```{r setup and tests, include=FALSE, warnings=F, message=F}
+
 # Load your data [change the files paths to your data locations]
 # dat <- read.csv("raw_data/Example_detection_data.csv", header=T) # ALSO CHANGE IN THE HEADER ABOVE
-# eff <- read.csv("raw_data/Example_deployment_data.csv", header=T)
+# eff <- read.csv("raw_data/eff.csv", header=T) #this is the camera effort you prepared above. 
 # sta <- read.csv("raw_data/Example_station_data.csv", header=T)
 
 dat <- read.csv("raw_data/Example_detection_data.csv", header=T) # ALSO CHANGE IN THE HEADER ABOVE
@@ -92,9 +271,51 @@ length(setdiff(eff$Deployment.Location.ID, sta$Deployment.Location.ID))
 
 ```
 
+Remove duplicate data -this is a data-cleaning chunk of code that checks data for duplicate tags of the same species on a single image and removes it so that only one tag remains. Make sure you review the duplicate data to ensure everything is working correctly and you are only removing unwanted duplicate tags 
+```{r}
+####DATA CLEANING####
+##removes duplicate tags - when tags are saved twice in WILD3
+##Created by: M Wrazej 
+##Date last modified: 2023-11-23
 
+#read in data already prepped using the WildCo_DB_to_Standardized script - be sure to chance file name as needed 
+dat <- read.csv("raw_data/Example_detection_data.csv")
 
+# Print the column headers of dat
+column_headers <- names(dat)
+cat("Column Headers:\n")
+cat(column_headers, sep = ", ")
+#output should look like this: 
+#Project.ID, Deployment.Location.ID, Image.ID, Blank, Species, Species.Common.Name, Date_Time.Captured, Time.Zone, Number.of.Animals, Minimum.Group.Size, Age, Sex, Behaviour, Collar, Collar.ID, comments
 
+##STEP 1: THE NEXT PART OF THE CODE WILL ALLOW YOU TO REVIEW THE DUPLICATE ENTRIES STEP BY STEP TO ENSURE THE CORRECT DATA IS 
+##IS BEING REMOVED - THEN YOU CAN MAKE THE CHANGES TO THE DAT DATA FRAME IN THE NEXT STEP 
+# Identify rows where all values match except comments
+duplicated_rows <- dat[duplicated(dat[, -16]) | duplicated(dat[, -16], fromLast = TRUE), ]
+
+# Remove duplicates, keeping the last entry - this will remove all duplicate tags exept those that have different comments 
+unique_duplicated_rows <- duplicated_rows[!duplicated(duplicated_rows, fromLast = TRUE), ]
+
+# Remove duplicates based on all columns except 'comments'
+unique_duplicated_rows <- unique_duplicated_rows[!duplicated(unique_duplicated_rows[, -16], fromLast = TRUE), ]
+
+##STEP 2: AFTER REVIEWING THE DATA CAREFULLY IN THE PREVIOUS STEP, YOU CAN NOW COMBINE THE CLEANED DUPLICATED DATA WITH THE 
+##UNDUPLICATED DATA IN THE ORIGINAL DATAFRAME
+dat <- read.csv("raw_data/Example_detection_data.csv")
+
+# Identify rows where all values match except comments
+duplicated_rows <- dat[duplicated(dat[, -16]) | duplicated(dat[, -16], fromLast = TRUE), ]
+
+# Create a dataframe of non-duplicated rows
+non_duplicated_dat <- anti_join(dat, duplicated_rows, by = NULL)
+
+# Assuming non_duplicated_dat and unique_duplicated_rows have the same structure
+dat <- rbind(non_duplicated_dat, unique_duplicated_rows)
+
+#save updated csv with duplicate entries removed
+write.csv(dat, paste0("raw_data/Example_detection_data.csv"), row.names = F)
+
+```
 
 ```{r non-adjustable options, echo=F, include=F}
 
