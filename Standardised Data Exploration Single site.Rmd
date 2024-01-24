@@ -203,9 +203,6 @@ for(i in 1:length(plot.order))
 }
 
 
-
-
-
 ```
 
 Figure 2: Where black lines denote a camera which is active, white space indicates cameras which are inactive, grey vertical lines represent the 1st of each calender month. 
@@ -293,39 +290,39 @@ for(j in 1:length(unique(eff$Plot.grp)))
 ### Temporal activity check
 The following plot allows you to explore if you are getting animal detections when you would expect to get them. E.g. Common opossums should predominantly be detected at night.
 
-
 ```{r}
-sp.order <- rev(sort(unique(dat$Species)))
-tmp4 <- data.frame("Species"=rev(sp.order), "Plot.grp"=ceiling(1:length(unique(dat$Species))/20))
+# updated to use ggplot Jan 2024
 
-j <-1
+sp.order <- sort(unique(dat$Species))
+plot_grp <- data.frame("Species"= sp.order, "Plot.grp"=ceiling(1:length(unique(dat$Species))/20))
+
+tmp4 <- left_join(dat, plot_grp, by = "Species") %>% 
+  mutate(time_of_day = hms::as_hms(ymd_hms(Date_Time.Captured)))
+
+j <- 1
 for(j in 1:length(unique(tmp4$Plot.grp)))
 {
-    layout(matrix(c(1,1,1,2), 1, 4, byrow = TRUE))
-    par(mar=c(2,12,1,1))
-    
-    plot(c(0,24),c(1,length(unique(tmp4$Species[tmp4$Plot.grp==j]))), las=1, ylab="", xlab="", type="n", yaxt="n", xaxt="n")
-    axis(1, at=c(0,6,12,18,24), labels=c("00:00", "06:00", "12:00", "18:00", "24:00"))
-    
-    axis(2, at= 1:length(unique(tmp4$Species[tmp4$Plot.grp==j])), labels= unique(tmp4$Species[tmp4$Plot.grp==j]), las=1, cex.axis=1)
-    abline(v=6, lty=2,col=rgb(0,0,0,0.5))
-    abline(v=18, lty=2,col=rgb(0,0,0,0.5) )
-    #mtext("Camera Deployment ID", 2, 4)
-    # Make lines for each of the cameras
-    for(i in 1:length(unique(tmp4$Species[tmp4$Plot.grp==j])))
-    {
-      abline(h=i, col=rgb(0,0,0,0.1))
-      
-      #tmp <- eff[eff$Deployment.Location.ID==unique(eff$Deployment.Location.ID[eff$Plot.grp==j])[i],]
-      
-      tmp2 <- dat[dat$Species==tmp4$Species[i],]
-      tmp2$Hours <- hour(tmp2$Date_Time.Captured) + minute(tmp2$Date_Time.Captured)/60 + second(tmp2$Date_Time.Captured)/(60*60) 
-
-      points(tmp2$Hours, rep(i,nrow(tmp2)), pch=19, col= "#20B2AA20")
-    
-    
-    }
+  tmp <- filter(tmp4, Plot.grp == j)
+  
+  plot <- ggplot(tmp, aes(x = time_of_day, y = Species)) +
+    geom_vline(xintercept = c(hms::as_hms("06:00:00"), hms::as_hms("18:00:00")),
+               colour = "grey", linetype = "dashed") +
+    geom_point(alpha = 0.7, shape = 1, colour = "#20B2AA20") +
+    scale_x_time(name = "", 
+                 breaks = c(hms::as_hms("00:00:00"), hms::as_hms("06:00:00"),
+                            hms::as_hms("12:00:00"), hms::as_hms("18:00:00"),
+                            hms::as_hms("24:00:00")),
+                 labels=c("00:00", "06:00", "12:00", "18:00", "24:00")) +
+    theme(panel.grid.major.y = element_line(size=.1, color="lightgrey"),
+          panel.grid.major.x = element_blank(),
+          panel.grid.minor.x = element_blank(),
+          panel.background = element_blank(),
+          panel.border = element_rect(colour = "black", fill=NA, size=1)) +
+    labs(y = "")
+  
+  print(plot)
 }
+
 ```
 
 
