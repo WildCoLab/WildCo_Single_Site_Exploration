@@ -11,10 +11,6 @@ knit: (function(inputFile, encoding) {
                         output_file=file.path(dirname(inputFile), paste0(dat$Project.ID[1],'_Exploration_',Sys.Date(), '.html'))) })  
 ---
 # !!!!!!!!! PLEASE ALSO CHANGE THE FILE NAME IN THE HEADER ABOVE FOR CORRECT FILE NAMING !!!!!!!!!!!!!! #
-
-## README FIRST ##
-#Read and run this chunk of code line by line in the R Console (do not press knit) - there are some questions below which you will have to answer and some logic tests to complete. Once you are happy that the conditions have been satisfied, hit 'knit' above. 
-
 STEP 1: The code chunk below can be used to create the camera effort "eff" csv for camera effort - this will need to be run before running the rest of the data prep code. Once this has been run with the most recent data export, it does not have to be re-run. 
 ```{r snow coverage and camera effort}
 #####SNOW COVERAGE/VIEW OBSTRUCTED AND CAMERA EFFORT#####
@@ -194,6 +190,8 @@ eff <- cam_eff
 write.csv(eff, "raw_data/eff.csv")
 
 ``` 
+## README FIRST ##
+#Read and run this chunk of code line by line in the R Console (do not press knit) - there are some questions below which you will have to answer and some logic tests to complete. Once you are happy that the conditions have been satisfied, hit 'knit' above. 
 Read in data - get set up and make sure everything is working 
 ```{r setup and tests, include=FALSE, warnings=F, message=F}
 
