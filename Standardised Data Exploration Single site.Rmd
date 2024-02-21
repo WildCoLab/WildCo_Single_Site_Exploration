@@ -16,7 +16,7 @@ STEP 1: The code chunk below can be used to create the camera effort "eff" csv f
 #####SNOW COVERAGE/VIEW OBSTRUCTED AND CAMERA EFFORT#####
 ##This script was prepared to calculate camera effort and help assess how much time the camera was covered while it was deployed (eg. cam was covered with snow or the view was fully obstructed).
 ##Prepared by: Madeleine Wrazej 
-##Last modified: 2023-10-25
+##Last modified: 2024-02-21
 
 #Load Packages
 list.of.packages <- c("leaflet", "dplyr", "viridis", "kriging", "lubridate", "kableExtra","tidyverse", "ggplot2")
@@ -1193,8 +1193,7 @@ If the code is working properly the total observations/counts should be the same
 ### Observations
 ```{r, echo=F}
 
-tmp <- cbind(data.frame("Time"=c("Total", "Monthly", "Weekly"
-                                 #, "Daily"
+tmp <- cbind(data.frame("Time"=c("Total", "Monthly", "Weekly", "Daily"
                                  )),
 rbind(colSums(total.obs[,2:ncol(total.obs)]),
 colSums(mon.obs[,3:ncol(mon.obs)]),
@@ -1211,8 +1210,7 @@ tmp %>%
 
 ### Counts
 ```{r, echo=F}
-tmp <- cbind(data.frame("Time"=c("Total", "Monthly", "Weekly"
-                                 #, "Daily"
+tmp <- cbind(data.frame("Time"=c("Total", "Monthly", "Weekly", "Daily"
                                  )),
 rbind(colSums(total.count[,2:ncol(total.count)]),
 colSums(mon.count[,3:ncol(mon.count)]),
