@@ -467,45 +467,39 @@ tmp3 <- data.frame("Species"=unique(dat$Species),"Colour"= turbo(length(unique(d
 
 
 ```{r detecion summary, echo=F, message=F, warning=F}
+# Updated to use ggplot Oct 2024 to speed up plotting
 
 # Make a separate plot for each 20 stations For each 20 stations
-# To do this make a plot dattaframe
+# To do this make a plot dataframe
 tmp4 <- data.frame("Deployment.Location.ID"=plot.order, "Plot.grp"=ceiling(1:length(unique(eff$Deployment.Location.ID))/20))
 
 eff <- left_join(eff,tmp4, by="Deployment.Location.ID")
-i<- 1
 j <- 1
 for(j in 1:length(unique(eff$Plot.grp)))
 {
-    layout(matrix(c(1,1,1,2), 1, 4, byrow = TRUE))
-    par(mar=c(2,6,1,1))
-    
-    plot(c(min(eff$Camera.Deployment.Begin.Date, na.rm=T), max(eff$Camera.Deployment.End.Date, na.rm=T)),      c(1,length(unique(eff$Deployment.Location.ID[eff$Plot.grp==j]))), las=1, ylab="", xlab="", type="n", yaxt="n")
-    
-    axis(2, at= 1:length(unique(eff$Deployment.Location.ID[eff$Plot.grp==j])), labels= unique(eff$Deployment.Location.ID[eff$Plot.grp==j]), las=1, cex.axis=1)
-    #mtext("Camera Deployment ID", 2, 4)
-    # Make lines for each of the cameras
-    for(i in 1:length(unique(eff$Deployment.Location.ID[eff$Plot.grp==j])))
-    {
-      abline(h=i, col=rgb(0,0,0,0.1))
-      tmp <- eff[eff$Deployment.Location.ID==unique(eff$Deployment.Location.ID[eff$Plot.grp==j])[i],]
-      
-      tmp2 <- dat[dat$Deployment.Location.ID==tmp$Deployment.Location.ID[1],]
-      tmp2 <- left_join(tmp2, tmp3, Joining, by = "Species")
-      points(tmp2$Date_Time.Captured, rep(i,nrow(tmp2)), pch="|", col= tmp2$Colour)
-    
-      for(k in 1:nrow(tmp))
-        {
-          lines(c(tmp$Camera.Deployment.Begin.Date[k],
-                           tmp$Camera.Deployment.End.Date[k]),
-                c(i,i), lwd=2)
-        }
-      }
-    par(mar=c(0,0,1,0))
-    plot.new()
-    legend("topleft", legend=tmp3$Species, fill=tmp3$Colour, xpd=TRUE, cex=1.1 )
-
-}
+  eff_tmp <- dplyr::filter(eff, Plot.grp == j)
+  dat_tmp <- filter(dat, Deployment.Location.ID %in%
+                      unique(eff_tmp$Deployment.Location.ID))
+  
+  species_activty_check <- ggplot() +
+    geom_segment(data = eff_tmp,
+                 aes(x = ymd_hms(paste0(Camera.Deployment.Begin.Date, 
+                                        " 12:00:00")),
+                     xend = ymd_hms(paste0(Camera.Deployment.End.Date, 
+                                           " 12:00:00")),
+                     y = Deployment.Location.ID,
+                     yend = Deployment.Location.ID)) +
+    geom_point(data = dat_tmp, 
+               aes(x = ymd_hms(Date_Time.Captured),
+                   y = Deployment.Location.ID,
+                   colour = Species),
+               shape = "|") +
+    guides(color = guide_legend(override.aes=list(shape = 15))) +
+    labs(x = "", y = "") +
+    theme_classic() 
+  
+   print(species_activty_check)
+}  
 
 ```
 
