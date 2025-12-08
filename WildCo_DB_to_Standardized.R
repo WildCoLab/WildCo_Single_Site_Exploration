@@ -76,22 +76,22 @@ write.csv(stations, paste0("raw_data/",proj_name,"_station_data.csv"), row.names
 
 ### 3. Standardize identifications from database output ####
 
-idents <- read.csv("raw_data/images_idents.csv")
-ud_dat <- idents
+tags <- read.csv("raw_data/tags.csv")
+images <- read.csv("raw_data/images.csv") %>% 
+  rename(image_id = X_id)
 
-# remove deleted rows
-ud_dat <- filter(ud_dat, deleted == "f")
+# add image-level data for to tags
+ud_dat <- left_join(tags, images, by = "image_id")
 
 # rename to standardized columns
-colnames(ud_dat)
+names(ud_dat)
 
 ud_dat <- ud_dat %>%
   rename(Project.ID = project_id,
          Deployment.Location.ID = station_id,
          Image.ID = orig_file,
          Blank = misfire,
-         Species = latin_name,
-         Species.Common.Name = common_names,
+         Species = species, # now combined latin and common name column, separate next
          Age = age_category,
          Date_Time.Captured = exif_timestamp,
          Sex = sex,
@@ -99,39 +99,51 @@ ud_dat <- ud_dat %>%
          Minimum.Group.Size = group_count,
          Number.of.Animals = species_count,
          Collar = collar,
-         Collar.ID = collar_tags)
+         Collar.ID = collar_tags,
+         Comments = comments.x)
+
+# Separate latin and common species names
+unique(ud_dat$Species)
+ud_dat <- ud_dat %>% 
+  mutate(# Extract text within brackets:
+         Species.Common.Name = stringr::str_extract(pattern = "(?<=\\().*?(?=\\))", 
+                                                    string = Species),
+         # Remove brackets and everthing within them
+         Species = gsub(pattern = " \\(.*?\\)", 
+                        replacement = "", 
+                        x = Species),
+         # for species without a common name (e.g. Bird spp.), make species name the common name
+         Species.Common.Name = if_else(is.na(Species.Common.Name), 
+                                       Species, Species.Common.Name))
 
 # remove blank images and misfires
-ud_dat$Blank[ud_dat$Blank=="f"] <- F
-ud_dat <- filter(ud_dat, Blank == F)
-ud_dat <- filter(ud_dat, Species != "No animal")
-
-# remove extraneous species column
-ud_dat <- subset(ud_dat, select = -c(species))
+ud_dat <- ud_dat %>% 
+  filter(Blank == "False",
+         Species != "No animal")
 
 # small standardizations
-ud_dat$`Project.ID` <- proj_name 
+ud_dat$Project.ID <- proj_name 
 ud_dat$Time.Zone <- NA
 ud_dat$Time.Zone <- "UTC-8" # Change if in different TZ
 
 # pare down to desired columns only
-ud_dat <- select(ud_dat,
-                 Project.ID,
-                 Deployment.Location.ID,
-                 Image.ID,
-                 Blank,
-                 Species,
-                 Species.Common.Name,
-                 Date_Time.Captured,
-                 Time.Zone,
-                 Number.of.Animals,
-                 Minimum.Group.Size,
-                 Age,
-                 Sex,
-                 Behaviour,
-                 Collar,
-                 Collar.ID,
-                 comments)
+ud_dat <- ud_dat %>% 
+  transmute(Project.ID,
+            Deployment.Location.ID,
+            Image.ID,
+            Blank = is.logical(Blank),
+            Species,
+            Species.Common.Name,
+            Date_Time.Captured,
+            Time.Zone,
+            Number.of.Animals,
+            Minimum.Group.Size,
+            Age,
+            Sex,
+            Behaviour,
+            Collar,
+            Collar.ID,
+            Comments)
 
 # Write to csv
 write.csv(ud_dat, paste0("raw_data/",proj_name,"_detection_data.csv"), row.names = F)
